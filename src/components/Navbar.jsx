@@ -14,7 +14,7 @@ export default function Navbar({ search, onSearchChange, showFavorites, onFavori
             </div>
             <div className="hidden sm:block">
               <h1 className="text-xl font-bold text-gray-900 truncate">Prompt Organizer</h1>
-              <p className="text-xs text-gray-600 leading-none">AI Prompt Manager</p>
+              <p className="text-xs text-gray-600 leading-none">by Het Palrecha</p>
             </div>
           </div>
 

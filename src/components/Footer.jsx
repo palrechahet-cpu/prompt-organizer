@@ -53,7 +53,10 @@ export default function Footer() {
 
         <div className="border-t border-gray-700 pt-6 sm:pt-8">
           <div className="flex flex-col sm:flex-row items-center justify-between gap-4 text-sm text-gray-400">
-            <p>© 2024 Prompt Organizer. Built for productivity.</p>
+            <div>
+              <p>© 2024 Prompt Organizer. Built for productivity.</p>
+              <p className="text-xs text-gray-500 mt-2">Created by <span className="font-semibold text-gray-300">Het Palrecha</span></p>
+            </div>
             <div className="flex gap-4">
               <a href="#" className="hover:text-white transition">Privacy</a>
               <a href="#" className="hover:text-white transition">Terms</a>
