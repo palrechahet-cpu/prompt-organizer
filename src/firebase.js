@@ -2,12 +2,13 @@ import { initializeApp } from 'firebase/app'
 import { getAuth, GoogleAuthProvider } from 'firebase/auth'
 
 const firebaseConfig = {
-  apiKey: "AIzaSyBf0GyxNOHNYNtGlNdiaR6Eur2X1xUY4iQ",
-  authDomain: "prompt-organizer-f8a53.firebaseapp.com",
-  projectId: "prompt-organizer-f8a53",
-  storageBucket: "prompt-organizer-f8a53.firebasestorage.app",
-  messagingSenderId: "1070410455166",
-  appId: "1:1070410455166:web:f7febb19a98f5ddc63e02f"
+  apiKey: "AIzaSyDt4a-eL5ycgyv-p3vZYzespcB3GfHizXA",
+  authDomain: "prompt-organizer-v2.firebaseapp.com",
+  projectId: "prompt-organizer-v2",
+  storageBucket: "prompt-organizer-v2.firebasestorage.app",
+  messagingSenderId: "383110405834",
+  appId: "1:383110405834:web:23a67b60a6ff0e77e09e33",
+  measurementId: "G-T79BLYTBWK"
 }
 
 const app = initializeApp(firebaseConfig)
