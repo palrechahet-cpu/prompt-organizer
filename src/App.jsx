@@ -74,13 +74,23 @@ function App() {
   const [authLoading, setAuthLoading] = useState(true)
   const [darkMode, setDarkMode] = useState(() => { return localStorage.getItem('darkMode') !== 'false' })
  const [prompts, setPrompts] = useState(() => {
-    try {
-      localStorage.removeItem('prompts')
-      return defaultPrompts
-    } catch {
+  try {
+    const saved = localStorage.getItem('prompts')
+    const parsed = saved ? JSON.parse(saved) : defaultPrompts
+    
+    if (!Array.isArray(parsed) || parsed.length === 0) {
       return defaultPrompts
     }
-  })
+
+    // Keep only user-added prompts (not built-in ones)
+    const userPrompts = parsed.filter(p => !p.builtIn)
+
+    // Always use latest built-in prompts + keep user's custom ones
+    return [...defaultPrompts, ...userPrompts]
+  } catch {
+    return defaultPrompts
+  }
+})
   const [search, setSearch] = useState('')
   const [activeCategory, setActiveCategory] = useState('All')
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false)
