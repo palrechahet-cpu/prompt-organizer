@@ -1,32 +1,39 @@
 import PromptCard from './PromptCard'
 
 export default function FeaturedSection({ prompts, onFavorite, onCopy, onDelete }) {
-  const featured = prompts.filter(p => p.builtIn)
-
+  const featured = prompts.filter(p => p.builtIn).slice(0, 4)
   if (featured.length === 0) return null
 
   return (
-    <section className="mb-8 sm:mb-12 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg sm:rounded-xl p-4 sm:p-8 border border-blue-100">
-      <div className="mb-4 sm:mb-6">
-        <span className="inline-block px-2.5 sm:px-3 py-1 bg-blue-200 text-blue-800 rounded-full text-xs font-semibold mb-2">
-          Featured
-        </span>
-        <h2 className="text-xl sm:text-2xl font-bold text-gray-900 mb-1 sm:mb-2">Expert Prompts</h2>
-        <p className="text-xs sm:text-base text-gray-600">Discover our curated collection of AI prompts. Click to copy and customize.</p>
-      </div>
+    <section className="mb-10 sm:mb-14 relative">
+      {/* Background */}
+      <div className="absolute inset-0 bg-gradient-to-br from-orange-50 via-amber-50/50 to-transparent dark:from-orange-950/20 dark:via-amber-950/10 dark:to-transparent rounded-3xl pointer-events-none" />
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-        {featured.map(p => (
-          <div key={p.id} className="bg-white rounded-lg shadow-sm hover:shadow-md transition">
+      <div className="relative rounded-3xl border border-orange-100 dark:border-orange-900/30 p-6 sm:p-10 overflow-hidden">
+        {/* Glow */}
+        <div className="absolute top-0 right-0 w-64 h-64 bg-orange-400/10 rounded-full blur-3xl pointer-events-none" />
+
+        <div className="mb-6 sm:mb-8">
+          <div className="flex items-center gap-2 mb-2">
+            <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-orange-100 dark:bg-orange-500/10 text-orange-600 dark:text-orange-400 border border-orange-200 dark:border-orange-500/20 rounded-full text-xs font-bold">
+              ✦ Featured
+            </span>
+          </div>
+          <h2 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white mb-2">Expert Prompts</h2>
+          <p className="text-sm text-gray-500 dark:text-gray-400">Hand-picked prompts ready to copy and use instantly.</p>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          {featured.map(p => (
             <PromptCard
+              key={p.id}
               prompt={p}
               onFavorite={() => onFavorite(p.id)}
               onCopy={() => onCopy(p.prompt)}
               onDelete={() => onDelete(p.id)}
-              compact={true}
             />
-          </div>
-        ))}
+          ))}
+        </div>
       </div>
     </section>
   )

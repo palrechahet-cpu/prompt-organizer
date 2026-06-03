@@ -1,35 +1,40 @@
 export default function CategoriesSection({ categories, activeCategory, onCategoryChange }) {
-  const categoryEmojis = {
-    'Research': '📚',
-    'Writing': '✍️',
-    'Education': '🎓',
-    'Psychology': '🧠',
-    'AI': '🤖',
-    'Productivity': '⚡',
-    'All': '✨'
+  const categoryConfig = {
+    'All':            { emoji: '✨', color: 'orange' },
+    'Research':       { emoji: '📚', color: 'blue' },
+    'Writing':        { emoji: '✍️', color: 'purple' },
+    'Education':      { emoji: '🎓', color: 'cyan' },
+    'Psychology':     { emoji: '🧠', color: 'pink' },
+    'AI':             { emoji: '🤖', color: 'orange' },
+    'Productivity':   { emoji: '⚡', color: 'green' },
+    'Creative':       { emoji: '🎨', color: 'violet' },
+    'Health & Fitness': { emoji: '💪', color: 'emerald' },
+    'Tech & Coding':  { emoji: '💻', color: 'sky' },
+    'Social Media':   { emoji: '📱', color: 'rose' },
   }
 
   return (
-    <section className="mb-6 sm:mb-8">
-      <div className="mb-3 sm:mb-4">
-        <h2 className="text-xs sm:text-sm font-semibold uppercase tracking-wide text-gray-600">Filter by Category</h2>
-      </div>
-      <div className="flex gap-1.5 sm:gap-2 flex-wrap overflow-x-auto pb-2">
-        {categories.map(c => (
-          <button
-            key={c}
-            onClick={() => onCategoryChange(c)}
-            className={`px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-medium transition flex items-center gap-1.5 sm:gap-2 whitespace-nowrap flex-shrink-0 active:scale-95 ${
-              activeCategory === c
-                ? 'bg-blue-600 text-white shadow-md'
-                : 'bg-white border border-gray-200 text-gray-700 hover:border-gray-300 hover:shadow-sm'
-            }`}
-          >
-            <span className="text-sm sm:text-base">{categoryEmojis[c] || '📌'}</span>
-            <span className="hidden sm:inline">{c}</span>
-            <span className="sm:hidden">{c.slice(0, 3)}</span>
-          </button>
-        ))}
+    <section className="mb-8">
+      <h2 className="text-xs font-bold uppercase tracking-widest text-gray-400 dark:text-gray-600 mb-4">Browse Categories</h2>
+      <div className="flex gap-2 flex-wrap">
+        {categories.map(c => {
+          const config = categoryConfig[c] || { emoji: '📌', color: 'gray' }
+          const isActive = activeCategory === c
+          return (
+            <button
+              key={c}
+              onClick={() => onCategoryChange(c)}
+              className={`px-3 sm:px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold transition-all duration-200 flex items-center gap-2 whitespace-nowrap active:scale-95 hover:-translate-y-0.5 ${
+                isActive
+                  ? 'bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-lg shadow-orange-200 dark:shadow-orange-900/30 border border-orange-400'
+                  : 'bg-white dark:bg-zinc-900 border border-gray-100 dark:border-zinc-800 text-gray-600 dark:text-gray-400 hover:border-orange-200 dark:hover:border-orange-500/30 hover:text-orange-500 dark:hover:text-orange-400 hover:shadow-md'
+              }`}
+            >
+              <span className="text-base">{config.emoji}</span>
+              <span>{c}</span>
+            </button>
+          )
+        })}
       </div>
     </section>
   )
