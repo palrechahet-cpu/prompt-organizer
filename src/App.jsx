@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { onAuthStateChanged, signOut } from 'firebase/auth'
-import { auth } from './firebase'
+import { doc, getDoc, setDoc } from 'firebase/firestore'
+import { auth, db } from './firebase'
 import Navbar from './components/Navbar'
 import HeroSection from './components/HeroSection'
 import FeaturedSection from './components/FeaturedSection'
@@ -72,18 +73,9 @@ function SharedPromptModal({ prompt, onImport, onClose }) {
 function App() {
   const [user, setUser] = useState(null)
   const [authLoading, setAuthLoading] = useState(true)
+  const [dataLoading, setDataLoading] = useState(false)
   const [darkMode, setDarkMode] = useState(() => { return localStorage.getItem('darkMode') !== 'false' })
-  const [prompts, setPrompts] = useState(() => {
-    try {
-      const saved = localStorage.getItem('prompts')
-      const parsed = saved ? JSON.parse(saved) : defaultPrompts
-      if (!Array.isArray(parsed) || parsed.length === 0) return defaultPrompts
-      const userPrompts = parsed.filter(p => !p.builtIn)
-      return [...defaultPrompts, ...userPrompts]
-    } catch {
-      return defaultPrompts
-    }
-  })
+  const [prompts, setPrompts] = useState([...defaultPrompts])
   const [search, setSearch] = useState('')
   const [activeCategory, setActiveCategory] = useState('All')
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false)
@@ -91,13 +83,39 @@ function App() {
   const [sharePrompt, setSharePrompt] = useState(null)
   const [incomingSharedPrompt, setIncomingSharedPrompt] = useState(null)
 
+  // Load prompts from Firestore when user logs in
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
+    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       setUser(firebaseUser)
+      if (firebaseUser) {
+        setDataLoading(true)
+        try {
+          const docRef = doc(db, 'users', firebaseUser.uid)
+          const docSnap = await getDoc(docRef)
+          if (docSnap.exists()) {
+            const userPrompts = docSnap.data().userPrompts || []
+            setPrompts([...defaultPrompts, ...userPrompts])
+          } else {
+            setPrompts([...defaultPrompts])
+          }
+        } catch (e) {
+          console.error('Error loading prompts:', e)
+          setPrompts([...defaultPrompts])
+        }
+        setDataLoading(false)
+      }
       setAuthLoading(false)
     })
     return () => unsubscribe()
   }, [])
+
+  // Save user prompts to Firestore whenever prompts change
+  useEffect(() => {
+    if (!user) return
+    const userPrompts = prompts.filter(p => !p.builtIn)
+    const docRef = doc(db, 'users', user.uid)
+    setDoc(docRef, { userPrompts }, { merge: true }).catch(e => console.error('Error saving prompts:', e))
+  }, [prompts, user])
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
@@ -105,7 +123,6 @@ function App() {
     if (shared) { try { const decoded = JSON.parse(decodeURIComponent(atob(shared))); setIncomingSharedPrompt(decoded) } catch { } }
   }, [])
 
-  useEffect(() => { localStorage.setItem('prompts', JSON.stringify(prompts)) }, [prompts])
   useEffect(() => { localStorage.setItem('darkMode', darkMode); document.documentElement.classList.toggle('dark', darkMode) }, [darkMode])
 
   const showToast = (message) => { setToast(message); setTimeout(() => setToast(null), 2500) }
@@ -139,12 +156,12 @@ function App() {
     return matchesSearch && matchesCategory && matchesFav
   })
 
-  if (authLoading) {
+  if (authLoading || dataLoading) {
     return (
       <div className="min-h-screen bg-gray-50 dark:bg-black flex items-center justify-center">
         <div className="flex flex-col items-center gap-3">
           <span className="text-4xl animate-bounce">🎯</span>
-          <p className="text-gray-400 text-sm">Loading...</p>
+          <p className="text-gray-400 text-sm">{authLoading ? 'Loading...' : 'Syncing your prompts...'}</p>
         </div>
       </div>
     )
