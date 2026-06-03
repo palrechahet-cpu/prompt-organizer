@@ -73,11 +73,10 @@ function App() {
   const [user, setUser] = useState(null)
   const [authLoading, setAuthLoading] = useState(true)
   const [darkMode, setDarkMode] = useState(() => { return localStorage.getItem('darkMode') !== 'false' })
-  const [prompts, setPrompts] = useState(() => {
+ const [prompts, setPrompts] = useState(() => {
     try {
-      const saved = localStorage.getItem('prompts')
-      const parsed = saved ? JSON.parse(saved) : defaultPrompts
-      return Array.isArray(parsed) && parsed.length > 0 ? parsed : defaultPrompts
+      localStorage.removeItem('prompts')
+      return defaultPrompts
     } catch {
       return defaultPrompts
     }
