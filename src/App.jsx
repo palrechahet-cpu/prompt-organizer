@@ -73,24 +73,17 @@ function App() {
   const [user, setUser] = useState(null)
   const [authLoading, setAuthLoading] = useState(true)
   const [darkMode, setDarkMode] = useState(() => { return localStorage.getItem('darkMode') !== 'false' })
- const [prompts, setPrompts] = useState(() => {
-  try {
-    const saved = localStorage.getItem('prompts')
-    const parsed = saved ? JSON.parse(saved) : defaultPrompts
-    
-    if (!Array.isArray(parsed) || parsed.length === 0) {
+  const [prompts, setPrompts] = useState(() => {
+    try {
+      const saved = localStorage.getItem('prompts')
+      const parsed = saved ? JSON.parse(saved) : defaultPrompts
+      if (!Array.isArray(parsed) || parsed.length === 0) return defaultPrompts
+      const userPrompts = parsed.filter(p => !p.builtIn)
+      return [...defaultPrompts, ...userPrompts]
+    } catch {
       return defaultPrompts
     }
-
-    // Keep only user-added prompts (not built-in ones)
-    const userPrompts = parsed.filter(p => !p.builtIn)
-
-    // Always use latest built-in prompts + keep user's custom ones
-    return [...defaultPrompts, ...userPrompts]
-  } catch {
-    return defaultPrompts
-  }
-})
+  })
   const [search, setSearch] = useState('')
   const [activeCategory, setActiveCategory] = useState('All')
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false)
@@ -119,6 +112,7 @@ function App() {
   const toggleFavorite = (id) => { setPrompts(prev => prev.map(p => p.id === id ? { ...p, favorite: !p.favorite } : p)) }
   const copyPrompt = (text) => { navigator.clipboard.writeText(text); showToast('Prompt copied!') }
   const addPrompt = (newPrompt) => { setPrompts(prev => [...prev, { ...newPrompt, id: Date.now(), favorite: false }]); showToast('Prompt added!') }
+  const bulkAddPrompts = (newPrompts) => { setPrompts(prev => [...prev, ...newPrompts.map((p, i) => ({ ...p, id: Date.now() + i, favorite: false }))]); showToast(`${newPrompts.length} prompts imported!`) }
   const deletePrompt = (id) => { setPrompts(prev => prev.filter(p => p.id !== id)); showToast('Prompt deleted!') }
 
   const importSharedPrompt = () => {
@@ -175,7 +169,7 @@ function App() {
           <HeroSection promptCount={prompts.length} />
           <FeaturedSection prompts={prompts} onCopy={copyPrompt} onFavorite={toggleFavorite} onDelete={deletePrompt} onShare={(p) => setSharePrompt(p)} />
           <CategoriesSection categories={categories} activeCategory={activeCategory} onCategoryChange={setActiveCategory} />
-          <AddPromptForm onAdd={addPrompt} />
+          <AddPromptForm onAdd={addPrompt} onBulkAdd={bulkAddPrompts} />
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
             {filtered.length === 0 ? (
               <div className="col-span-full text-center py-16 text-gray-400 dark:text-gray-600">
