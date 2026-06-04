@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { onAuthStateChanged, signOut } from 'firebase/auth'
-import { doc, getDoc, setDoc } from 'firebase/firestore'
+import { collection, doc, setDoc, deleteDoc, onSnapshot } from 'firebase/firestore'
 import { auth, db } from './firebase'
 import Navbar from './components/Navbar'
 import HeroSection from './components/HeroSection'
@@ -73,9 +73,8 @@ function SharedPromptModal({ prompt, onImport, onClose }) {
 function App() {
   const [user, setUser] = useState(null)
   const [authLoading, setAuthLoading] = useState(true)
-  const [dataLoading, setDataLoading] = useState(false)
-  const [darkMode, setDarkMode] = useState(() => { return localStorage.getItem('darkMode') !== 'false' })
-  const [prompts, setPrompts] = useState([...defaultPrompts])
+  const [userPrompts, setUserPrompts] = useState([])
+  const [darkMode, setDarkMode] = useState(() => localStorage.getItem('darkMode') !== 'false')
   const [search, setSearch] = useState('')
   const [activeCategory, setActiveCategory] = useState('All')
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false)
@@ -83,54 +82,78 @@ function App() {
   const [sharePrompt, setSharePrompt] = useState(null)
   const [incomingSharedPrompt, setIncomingSharedPrompt] = useState(null)
 
-  // Load prompts from Firestore when user logs in
+  // Auth listener
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+    const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
       setUser(firebaseUser)
-      if (firebaseUser) {
-        setDataLoading(true)
-        try {
-          const docRef = doc(db, 'users', firebaseUser.uid)
-          const docSnap = await getDoc(docRef)
-          if (docSnap.exists()) {
-            const userPrompts = docSnap.data().userPrompts || []
-            setPrompts([...defaultPrompts, ...userPrompts])
-          } else {
-            setPrompts([...defaultPrompts])
-          }
-        } catch (e) {
-          console.error('Error loading prompts:', e)
-          setPrompts([...defaultPrompts])
-        }
-        setDataLoading(false)
-      }
       setAuthLoading(false)
     })
     return () => unsubscribe()
   }, [])
 
-  // Save user prompts to Firestore whenever prompts change
+  // Real-time Firestore listener — loads user prompts on any device
   useEffect(() => {
-    if (!user) return
-    const userPrompts = prompts.filter(p => !p.builtIn)
-    const docRef = doc(db, 'users', user.uid)
-    setDoc(docRef, { userPrompts }, { merge: true }).catch(e => console.error('Error saving prompts:', e))
-  }, [prompts, user])
+    if (!user) { setUserPrompts([]); return }
+    const ref = collection(db, 'users', user.uid, 'prompts')
+    const unsubscribe = onSnapshot(ref, (snapshot) => {
+      const loaded = snapshot.docs.map(d => ({ ...d.data(), id: d.id }))
+      setUserPrompts(loaded)
+    }, (error) => {
+      console.error('Error loading prompts:', error)
+    })
+    return () => unsubscribe()
+  }, [user])
 
+  // Check for shared prompt in URL
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
     const shared = params.get('share')
     if (shared) { try { const decoded = JSON.parse(decodeURIComponent(atob(shared))); setIncomingSharedPrompt(decoded) } catch { } }
   }, [])
 
-  useEffect(() => { localStorage.setItem('darkMode', darkMode); document.documentElement.classList.toggle('dark', darkMode) }, [darkMode])
+  useEffect(() => {
+    localStorage.setItem('darkMode', darkMode)
+    document.documentElement.classList.toggle('dark', darkMode)
+  }, [darkMode])
 
   const showToast = (message) => { setToast(message); setTimeout(() => setToast(null), 2500) }
-  const toggleFavorite = (id) => { setPrompts(prev => prev.map(p => p.id === id ? { ...p, favorite: !p.favorite } : p)) }
+
+  const addPrompt = async (newPrompt) => {
+    if (!user) return
+    const ref = doc(collection(db, 'users', user.uid, 'prompts'))
+    await setDoc(ref, { ...newPrompt, favorite: false, builtIn: false, createdAt: Date.now() })
+    showToast('Prompt added!')
+  }
+
+  const bulkAddPrompts = async (newPrompts) => {
+    if (!user) return
+    await Promise.all(newPrompts.map((p, i) => {
+      const ref = doc(collection(db, 'users', user.uid, 'prompts'))
+      return setDoc(ref, { ...p, favorite: false, builtIn: false, createdAt: Date.now() + i })
+    }))
+    showToast(`${newPrompts.length} prompts imported!`)
+  }
+
+  const toggleFavorite = async (id) => {
+    if (!user) return
+    const prompt = userPrompts.find(p => p.id === id)
+    if (!prompt) return
+    const ref = doc(db, 'users', user.uid, 'prompts', id)
+    await setDoc(ref, { ...prompt, favorite: !prompt.favorite })
+  }
+
+  const deletePrompt = async (id) => {
+    if (defaultPrompts.find(p => String(p.id) === String(id))) {
+      showToast('Cannot delete built-in prompts')
+      return
+    }
+    if (!user) return
+    const ref = doc(db, 'users', user.uid, 'prompts', id)
+    await deleteDoc(ref)
+    showToast('Prompt deleted!')
+  }
+
   const copyPrompt = (text) => { navigator.clipboard.writeText(text); showToast('Prompt copied!') }
-  const addPrompt = (newPrompt) => { setPrompts(prev => [...prev, { ...newPrompt, id: Date.now(), favorite: false }]); showToast('Prompt added!') }
-  const bulkAddPrompts = (newPrompts) => { setPrompts(prev => [...prev, ...newPrompts.map((p, i) => ({ ...p, id: Date.now() + i, favorite: false }))]); showToast(`${newPrompts.length} prompts imported!`) }
-  const deletePrompt = (id) => { setPrompts(prev => prev.filter(p => p.id !== id)); showToast('Prompt deleted!') }
 
   const importSharedPrompt = () => {
     if (!incomingSharedPrompt) return
@@ -148,6 +171,7 @@ function App() {
     window.history.replaceState({}, '', url.toString())
   }
 
+  const prompts = [...defaultPrompts, ...userPrompts]
   const categories = ['All', ...new Set(prompts.map(p => p.category))]
   const filtered = prompts.filter(p => {
     const matchesSearch = p.title.toLowerCase().includes(search.toLowerCase()) || p.tags?.some(t => t.toLowerCase().includes(search.toLowerCase())) || p.prompt?.toLowerCase().includes(search.toLowerCase())
@@ -156,12 +180,12 @@ function App() {
     return matchesSearch && matchesCategory && matchesFav
   })
 
-  if (authLoading || dataLoading) {
+  if (authLoading) {
     return (
       <div className="min-h-screen bg-gray-50 dark:bg-black flex items-center justify-center">
         <div className="flex flex-col items-center gap-3">
           <span className="text-4xl animate-bounce">🎯</span>
-          <p className="text-gray-400 text-sm">{authLoading ? 'Loading...' : 'Syncing your prompts...'}</p>
+          <p className="text-gray-400 text-sm">Loading...</p>
         </div>
       </div>
     )
