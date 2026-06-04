@@ -8,6 +8,8 @@ import FeaturedSection from './components/FeaturedSection'
 import CategoriesSection from './components/CategoriesSection'
 import AddPromptForm from './components/AddPromptForm'
 import PromptCard from './components/PromptCard'
+import CollectionsSidebar from './components/CollectionsSidebar'
+import AddToCollectionModal from './components/AddToCollectionModal'
 import Footer from './components/Footer'
 import Toast from './components/Toast'
 import LoginPage from './components/LoginPage'
@@ -70,10 +72,46 @@ function SharedPromptModal({ prompt, onImport, onClose }) {
   )
 }
 
+function AddCategoryModal({ onAdd, onClose }) {
+  const [name, setName] = useState('')
+  const handleBackdrop = (e) => { if (e.target === e.currentTarget) onClose() }
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm px-4" onClick={handleBackdrop}>
+      <div className="bg-white dark:bg-zinc-900 border border-gray-100 dark:border-zinc-800 rounded-2xl shadow-2xl w-full max-w-sm p-6 flex flex-col gap-4">
+        <div className="flex items-center justify-between">
+          <h2 className="font-bold text-gray-900 dark:text-white text-lg">New Category</h2>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl">✕</button>
+        </div>
+        <input
+          type="text"
+          value={name}
+          onChange={e => setName(e.target.value)}
+          onKeyDown={e => e.key === 'Enter' && name.trim() && (onAdd(name.trim()), onClose())}
+          placeholder="e.g. Client Work, Personal, Side Projects"
+          autoFocus
+          className="w-full px-4 py-3 rounded-xl border border-gray-200 dark:border-zinc-700 bg-gray-50 dark:bg-zinc-800 text-gray-900 dark:text-gray-100 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
+        />
+        <div className="flex gap-2">
+          <button
+            onClick={() => { if (name.trim()) { onAdd(name.trim()); onClose() } }}
+            className="flex-1 py-3 bg-gradient-to-r from-orange-500 to-amber-500 text-white rounded-xl font-bold text-sm active:scale-95"
+          >
+            Create Category
+          </button>
+          <button onClick={onClose} className="flex-1 py-3 bg-gray-100 dark:bg-zinc-800 text-gray-500 rounded-xl font-bold text-sm active:scale-95">Cancel</button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function App() {
   const [user, setUser] = useState(null)
   const [authLoading, setAuthLoading] = useState(true)
   const [userPrompts, setUserPrompts] = useState([])
+  const [collections, setCollections] = useState([])
+  const [userCategories, setUserCategories] = useState([])
+  const [activeCollection, setActiveCollection] = useState(null)
   const [darkMode, setDarkMode] = useState(() => localStorage.getItem('darkMode') !== 'false')
   const [search, setSearch] = useState('')
   const [activeCategory, setActiveCategory] = useState('All')
@@ -81,8 +119,9 @@ function App() {
   const [toast, setToast] = useState(null)
   const [sharePrompt, setSharePrompt] = useState(null)
   const [incomingSharedPrompt, setIncomingSharedPrompt] = useState(null)
+  const [collectionModalPrompt, setCollectionModalPrompt] = useState(null)
+  const [showAddCategory, setShowAddCategory] = useState(false)
 
-  // Auth listener
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
       setUser(firebaseUser)
@@ -91,20 +130,38 @@ function App() {
     return () => unsubscribe()
   }, [])
 
-  // Real-time Firestore listener — loads user prompts on any device
+  // Load user prompts
   useEffect(() => {
     if (!user) { setUserPrompts([]); return }
     const ref = collection(db, 'users', user.uid, 'prompts')
     const unsubscribe = onSnapshot(ref, (snapshot) => {
       const loaded = snapshot.docs.map(d => ({ ...d.data(), id: d.id }))
       setUserPrompts(loaded)
-    }, (error) => {
-      console.error('Error loading prompts:', error)
     })
     return () => unsubscribe()
   }, [user])
 
-  // Check for shared prompt in URL
+  // Load collections
+  useEffect(() => {
+    if (!user) { setCollections([]); return }
+    const ref = collection(db, 'users', user.uid, 'collections')
+    const unsubscribe = onSnapshot(ref, (snapshot) => {
+      const loaded = snapshot.docs.map(d => ({ ...d.data(), id: d.id }))
+      setCollections(loaded)
+    })
+    return () => unsubscribe()
+  }, [user])
+
+  // Load user categories
+  useEffect(() => {
+    if (!user) { setUserCategories([]); return }
+    const ref = collection(db, 'users', user.uid, 'categories')
+    const unsubscribe = onSnapshot(ref, (snapshot) => {
+      setUserCategories(snapshot.docs.map(d => d.data().name))
+    })
+    return () => unsubscribe()
+  }, [user])
+
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
     const shared = params.get('share')
@@ -121,7 +178,7 @@ function App() {
   const addPrompt = async (newPrompt) => {
     if (!user) return
     const ref = doc(collection(db, 'users', user.uid, 'prompts'))
-    await setDoc(ref, { ...newPrompt, favorite: false, builtIn: false, createdAt: Date.now() })
+    await setDoc(ref, { ...newPrompt, favorite: false, builtIn: false, collections: [], createdAt: Date.now() })
     showToast('Prompt added!')
   }
 
@@ -129,7 +186,7 @@ function App() {
     if (!user) return
     await Promise.all(newPrompts.map((p, i) => {
       const ref = doc(collection(db, 'users', user.uid, 'prompts'))
-      return setDoc(ref, { ...p, favorite: false, builtIn: false, createdAt: Date.now() + i })
+      return setDoc(ref, { ...p, favorite: false, builtIn: false, collections: [], createdAt: Date.now() + i })
     }))
     showToast(`${newPrompts.length} prompts imported!`)
   }
@@ -143,14 +200,59 @@ function App() {
   }
 
   const deletePrompt = async (id) => {
-    if (defaultPrompts.find(p => String(p.id) === String(id))) {
-      showToast('Cannot delete built-in prompts')
-      return
-    }
+    if (defaultPrompts.find(p => String(p.id) === String(id))) { showToast('Cannot delete built-in prompts'); return }
     if (!user) return
-    const ref = doc(db, 'users', user.uid, 'prompts', id)
-    await deleteDoc(ref)
+    await deleteDoc(doc(db, 'users', user.uid, 'prompts', id))
     showToast('Prompt deleted!')
+  }
+
+  const addCollection = async ({ name, emoji }) => {
+    if (!user) return
+    const ref = doc(collection(db, 'users', user.uid, 'collections'))
+    await setDoc(ref, { name, emoji, createdAt: Date.now() })
+  }
+
+  const deleteCollection = async (id) => {
+    if (!user) return
+    await deleteDoc(doc(db, 'users', user.uid, 'collections', id))
+    if (activeCollection?.id === id) setActiveCollection(null)
+    showToast('Collection deleted!')
+  }
+
+  const addToCollection = async (collectionId) => {
+    if (!user || !collectionModalPrompt) return
+    const prompt = userPrompts.find(p => p.id === collectionModalPrompt.id)
+    if (!prompt) return
+    const current = prompt.collections || []
+    await setDoc(doc(db, 'users', user.uid, 'prompts', prompt.id), { ...prompt, collections: [...current, collectionId] })
+    showToast('Added to collection!')
+  }
+
+  const removeFromCollection = async (collectionId) => {
+    if (!user || !collectionModalPrompt) return
+    const prompt = userPrompts.find(p => p.id === collectionModalPrompt.id)
+    if (!prompt) return
+    const current = prompt.collections || []
+    await setDoc(doc(db, 'users', user.uid, 'prompts', prompt.id), { ...prompt, collections: current.filter(c => c !== collectionId) })
+    showToast('Removed from collection!')
+  }
+
+  const addCategory = async (name) => {
+    if (!user) return
+    const ref = doc(collection(db, 'users', user.uid, 'categories'))
+    await setDoc(ref, { name })
+    showToast(`Category "${name}" created!`)
+  }
+
+  const deleteCategory = async (name) => {
+    if (!user) return
+    const ref = collection(db, 'users', user.uid, 'categories')
+    const unsubscribe = onSnapshot(ref, async (snapshot) => {
+      const docToDelete = snapshot.docs.find(d => d.data().name === name)
+      if (docToDelete) await deleteDoc(doc(db, 'users', user.uid, 'categories', docToDelete.id))
+      unsubscribe()
+    })
+    showToast(`Category "${name}" deleted!`)
   }
 
   const copyPrompt = (text) => { navigator.clipboard.writeText(text); showToast('Prompt copied!') }
@@ -171,13 +273,15 @@ function App() {
     window.history.replaceState({}, '', url.toString())
   }
 
-  const prompts = [...defaultPrompts, ...userPrompts]
-  const categories = ['All', ...new Set(prompts.map(p => p.category))]
-  const filtered = prompts.filter(p => {
+  const allPrompts = [...defaultPrompts, ...userPrompts]
+  const allCategories = ['All', ...new Set([...allPrompts.map(p => p.category), ...userCategories])]
+
+  const filtered = allPrompts.filter(p => {
     const matchesSearch = p.title.toLowerCase().includes(search.toLowerCase()) || p.tags?.some(t => t.toLowerCase().includes(search.toLowerCase())) || p.prompt?.toLowerCase().includes(search.toLowerCase())
     const matchesCategory = activeCategory === 'All' || p.category === activeCategory
     const matchesFav = !showFavoritesOnly || p.favorite
-    return matchesSearch && matchesCategory && matchesFav
+    const matchesCollection = !activeCollection || p.collections?.includes(activeCollection.id)
+    return matchesSearch && matchesCategory && matchesFav && matchesCollection
   })
 
   if (authLoading) {
@@ -206,29 +310,64 @@ function App() {
           user={user}
           onSignOut={() => signOut(auth)}
         />
-        <main className="max-w-7xl mx-auto px-4 sm:px-6 py-6 sm:py-10">
-          <HeroSection promptCount={prompts.length} />
-          <FeaturedSection prompts={prompts} onCopy={copyPrompt} onFavorite={toggleFavorite} onDelete={deletePrompt} onShare={(p) => setSharePrompt(p)} />
-          <CategoriesSection categories={categories} activeCategory={activeCategory} onCategoryChange={setActiveCategory} />
-          <AddPromptForm onAdd={addPrompt} onBulkAdd={bulkAddPrompts} />
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-            {filtered.length === 0 ? (
-              <div className="col-span-full text-center py-16 text-gray-400 dark:text-gray-600">
-                <p className="text-4xl mb-3">🔍</p>
-                <p className="text-lg font-medium">No prompts found</p>
-                <p className="text-sm">Try a different search or category</p>
-              </div>
-            ) : (
-              filtered.map(p => (
-                <PromptCard key={p.id} prompt={p} onFavorite={() => toggleFavorite(p.id)} onCopy={() => copyPrompt(p.prompt)} onDelete={() => deletePrompt(p.id)} onShare={() => setSharePrompt(p)} />
-              ))
-            )}
-          </div>
-        </main>
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6 sm:py-10 flex gap-6">
+          <CollectionsSidebar
+            collections={collections}
+            activeCollection={activeCollection}
+            onSelectCollection={setActiveCollection}
+            onAddCollection={addCollection}
+            onDeleteCollection={deleteCollection}
+            prompts={userPrompts}
+          />
+          <main className="flex-1 min-w-0">
+            <HeroSection promptCount={allPrompts.length} />
+            <FeaturedSection prompts={allPrompts} onCopy={copyPrompt} onFavorite={toggleFavorite} onDelete={deletePrompt} onShare={(p) => setSharePrompt(p)} />
+            <CategoriesSection
+              categories={allCategories}
+              activeCategory={activeCategory}
+              onCategoryChange={setActiveCategory}
+              onAddCategory={() => setShowAddCategory(true)}
+              onDeleteCategory={deleteCategory}
+              userCategories={userCategories}
+            />
+            <AddPromptForm onAdd={addPrompt} onBulkAdd={bulkAddPrompts} extraCategories={userCategories} />
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3 gap-4">
+              {filtered.length === 0 ? (
+                <div className="col-span-full text-center py-16 text-gray-400 dark:text-gray-600">
+                  <p className="text-4xl mb-3">🔍</p>
+                  <p className="text-lg font-medium">No prompts found</p>
+                  <p className="text-sm">Try a different search or category</p>
+                </div>
+              ) : (
+                filtered.map(p => (
+                  <PromptCard
+                    key={p.id}
+                    prompt={p}
+                    onFavorite={() => toggleFavorite(p.id)}
+                    onCopy={() => copyPrompt(p.prompt)}
+                    onDelete={() => deletePrompt(p.id)}
+                    onShare={() => setSharePrompt(p)}
+                    onAddToCollection={() => setCollectionModalPrompt(p)}
+                  />
+                ))
+              )}
+            </div>
+          </main>
+        </div>
         <Footer />
         {toast && <Toast message={toast} onClose={() => setToast(null)} />}
         {sharePrompt && <ShareModal prompt={sharePrompt} onClose={() => setSharePrompt(null)} />}
         {incomingSharedPrompt && <SharedPromptModal prompt={incomingSharedPrompt} onImport={importSharedPrompt} onClose={dismissSharedPrompt} />}
+        {collectionModalPrompt && (
+          <AddToCollectionModal
+            prompt={collectionModalPrompt}
+            collections={collections}
+            onAdd={addToCollection}
+            onRemove={removeFromCollection}
+            onClose={() => setCollectionModalPrompt(null)}
+          />
+        )}
+        {showAddCategory && <AddCategoryModal onAdd={addCategory} onClose={() => setShowAddCategory(false)} />}
       </div>
     </div>
   )
