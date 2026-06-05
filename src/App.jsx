@@ -109,6 +109,7 @@ function App() {
   const [user, setUser] = useState(null)
   const [authLoading, setAuthLoading] = useState(true)
   const [userPrompts, setUserPrompts] = useState([])
+  const [favorites, setFavorites] = useState({})
   const [collections, setCollections] = useState([])
   const [userCategories, setUserCategories] = useState([])
   const [activeCollection, setActiveCollection] = useState(null)
@@ -122,6 +123,7 @@ function App() {
   const [collectionModalPrompt, setCollectionModalPrompt] = useState(null)
   const [showAddCategory, setShowAddCategory] = useState(false)
 
+  // Auth
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
       setUser(firebaseUser)
@@ -137,6 +139,18 @@ function App() {
     const unsubscribe = onSnapshot(ref, (snapshot) => {
       const loaded = snapshot.docs.map(d => ({ ...d.data(), id: d.id }))
       setUserPrompts(loaded)
+    })
+    return () => unsubscribe()
+  }, [user])
+
+  // Load favorites for built-in prompts
+  useEffect(() => {
+    if (!user) { setFavorites({}); return }
+    const ref = collection(db, 'users', user.uid, 'favorites')
+    const unsubscribe = onSnapshot(ref, (snapshot) => {
+      const favMap = {}
+      snapshot.docs.forEach(d => { favMap[d.data().promptId] = true })
+      setFavorites(favMap)
     })
     return () => unsubscribe()
   }, [user])
@@ -162,6 +176,7 @@ function App() {
     return () => unsubscribe()
   }, [user])
 
+  // Check for shared prompt in URL
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
     const shared = params.get('share')
@@ -193,10 +208,20 @@ function App() {
 
   const toggleFavorite = async (id) => {
     if (!user) return
-    const prompt = userPrompts.find(p => p.id === id)
-    if (!prompt) return
-    const ref = doc(db, 'users', user.uid, 'prompts', id)
-    await setDoc(ref, { ...prompt, favorite: !prompt.favorite })
+    // User-added prompt
+    const userPrompt = userPrompts.find(p => p.id === id)
+    if (userPrompt) {
+      const ref = doc(db, 'users', user.uid, 'prompts', id)
+      await setDoc(ref, { ...userPrompt, favorite: !userPrompt.favorite })
+      return
+    }
+    // Built-in prompt — use favorites collection
+    const favRef = doc(db, 'users', user.uid, 'favorites', String(id))
+    if (favorites[String(id)]) {
+      await deleteDoc(favRef)
+    } else {
+      await setDoc(favRef, { promptId: String(id), favoritedAt: Date.now() })
+    }
   }
 
   const deletePrompt = async (id) => {
@@ -273,7 +298,12 @@ function App() {
     window.history.replaceState({}, '', url.toString())
   }
 
-  const allPrompts = [...defaultPrompts, ...userPrompts]
+  // Merge built-in prompts with favorites map
+  const allPrompts = [
+    ...defaultPrompts.map(p => ({ ...p, favorite: !!favorites[String(p.id)] })),
+    ...userPrompts
+  ]
+
   const allCategories = ['All', ...new Set([...allPrompts.map(p => p.category), ...userCategories])]
 
   const filtered = allPrompts.filter(p => {
@@ -331,7 +361,7 @@ function App() {
               userCategories={userCategories}
             />
             <AddPromptForm onAdd={addPrompt} onBulkAdd={bulkAddPrompts} extraCategories={userCategories} />
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               {filtered.length === 0 ? (
                 <div className="col-span-full text-center py-16 text-gray-400 dark:text-gray-600">
                   <p className="text-4xl mb-3">🔍</p>
