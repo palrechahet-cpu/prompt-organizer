@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import RemixModal from './RemixModal'
 
 function SendToAIModal({ prompt, onClose }) {
   const [editedPrompt, setEditedPrompt] = useState(prompt.prompt)
@@ -25,6 +26,7 @@ function SendToAIModal({ prompt, onClose }) {
   ]
 
   const handleSend = (agent) => {
+    navigator.clipboard.writeText(editedPrompt)
     window.open(agent.getUrl(editedPrompt), '_blank')
     onClose()
   }
@@ -34,8 +36,6 @@ function SendToAIModal({ prompt, onClose }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm px-4" onClick={handleBackdrop}>
       <div className="bg-white dark:bg-zinc-900 border border-gray-100 dark:border-zinc-800 rounded-2xl shadow-2xl w-full max-w-lg p-6 flex flex-col gap-4">
-        
-        {/* Header */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <span className="text-xl">🚀</span>
@@ -43,32 +43,22 @@ function SendToAIModal({ prompt, onClose }) {
           </div>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 text-xl transition-colors">✕</button>
         </div>
-
-        {/* Prompt title */}
         <div className="flex items-center gap-2">
           <span className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Prompt:</span>
           <span className="text-xs font-bold text-orange-500">{prompt.title}</span>
         </div>
-
-        {/* Editable prompt */}
         <div>
-          <label className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1.5 block">
-            Edit before sending
-          </label>
+          <label className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1.5 block">Edit before sending</label>
           <textarea
             value={editedPrompt}
             onChange={e => setEditedPrompt(e.target.value)}
             rows={6}
             className="w-full px-4 py-3 rounded-xl border border-gray-200 dark:border-zinc-700 bg-gray-50 dark:bg-zinc-800 text-gray-900 dark:text-gray-100 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent transition resize-none"
           />
-          <p className="text-xs text-gray-400 dark:text-gray-600 mt-1">{editedPrompt.length} characters</p>
+          <p className="text-xs text-gray-400 dark:text-gray-600 mt-1">{editedPrompt.length} characters · Also copies to clipboard</p>
         </div>
-
-        {/* AI Agent buttons */}
         <div>
-          <label className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-3 block">
-            Choose AI Agent
-          </label>
+          <label className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-3 block">Choose AI Agent</label>
           <div className="flex flex-col gap-2">
             {agents.map(agent => (
               <button
@@ -83,29 +73,27 @@ function SendToAIModal({ prompt, onClose }) {
             ))}
           </div>
         </div>
-
-        <p className="text-xs text-gray-400 dark:text-gray-600 text-center">
-          Opens a new tab with your prompt ready to send
-        </p>
+        <p className="text-xs text-gray-400 dark:text-gray-600 text-center">Opens a new tab · Prompt copied to clipboard automatically</p>
       </div>
     </div>
   )
 }
 
-export default function PromptCard({ prompt, onFavorite, onCopy, onDelete }) {
+export default function PromptCard({ prompt, onFavorite, onCopy, onDelete, onShare, onAddToCollection }) {
   const [showAIModal, setShowAIModal] = useState(false)
+  const [showRemixModal, setShowRemixModal] = useState(false)
 
   const categoryConfig = {
-    Research:        { color: 'blue',   emoji: '📚' },
-    Writing:         { color: 'purple', emoji: '✍️' },
-    AI:              { color: 'orange', emoji: '🤖' },
-    Productivity:    { color: 'green',  emoji: '⚡' },
-    Education:       { color: 'cyan',   emoji: '🎓' },
-    Psychology:      { color: 'pink',   emoji: '🧠' },
-    Creative:        { color: 'violet', emoji: '🎨' },
+    Research:           { color: 'blue',    emoji: '📚' },
+    Writing:            { color: 'purple',  emoji: '✍️' },
+    AI:                 { color: 'orange',  emoji: '🤖' },
+    Productivity:       { color: 'green',   emoji: '⚡' },
+    Education:          { color: 'cyan',    emoji: '🎓' },
+    Psychology:         { color: 'pink',    emoji: '🧠' },
+    Creative:           { color: 'violet',  emoji: '🎨' },
     'Health & Fitness': { color: 'emerald', emoji: '💪' },
-    'Tech & Coding': { color: 'sky',    emoji: '💻' },
-    'Social Media':  { color: 'rose',   emoji: '📱' },
+    'Tech & Coding':    { color: 'sky',     emoji: '💻' },
+    'Social Media':     { color: 'rose',    emoji: '📱' },
   }
 
   const config = categoryConfig[prompt.category] || { color: 'gray', emoji: '📌' }
@@ -127,10 +115,10 @@ export default function PromptCard({ prompt, onFavorite, onCopy, onDelete }) {
   return (
     <>
       {showAIModal && <SendToAIModal prompt={prompt} onClose={() => setShowAIModal(false)} />}
+      {showRemixModal && <RemixModal prompt={prompt} onClose={() => setShowRemixModal(false)} />}
 
       <div className="group relative bg-white dark:bg-zinc-900 border border-gray-100 dark:border-zinc-800 rounded-2xl p-5 flex flex-col gap-3 hover:border-orange-200 dark:hover:border-orange-500/30 hover:shadow-xl hover:shadow-orange-100/50 dark:hover:shadow-orange-900/10 transition-all duration-300 hover:-translate-y-1">
 
-        {/* Subtle gradient overlay on hover */}
         <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-orange-500/0 to-amber-500/0 group-hover:from-orange-500/3 group-hover:to-amber-500/3 transition-all duration-300 pointer-events-none" />
 
         {/* Header */}
@@ -169,7 +157,7 @@ export default function PromptCard({ prompt, onFavorite, onCopy, onDelete }) {
         )}
 
         {/* Actions */}
-        <div className="flex gap-2 pt-1">
+        <div className="flex gap-2 pt-1 flex-wrap">
           <button
             onClick={onCopy}
             className="flex-1 py-2 bg-gray-50 dark:bg-zinc-800 hover:bg-gray-100 dark:hover:bg-zinc-700 text-gray-600 dark:text-gray-400 border border-gray-100 dark:border-zinc-700 rounded-xl text-xs font-semibold transition-all duration-200 active:scale-95"
@@ -178,9 +166,22 @@ export default function PromptCard({ prompt, onFavorite, onCopy, onDelete }) {
           </button>
           <button
             onClick={() => setShowAIModal(true)}
-            className="flex-1 py-2 bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white rounded-xl text-xs font-semibold transition-all duration-200 shadow-sm hover:shadow-md hover:shadow-orange-200 dark:hover:shadow-orange-900/30 active:scale-95"
+            className="flex-1 py-2 bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white rounded-xl text-xs font-semibold transition-all duration-200 shadow-sm active:scale-95"
           >
             🚀 Send to AI
+          </button>
+          <button
+            onClick={() => setShowRemixModal(true)}
+            className="flex-1 py-2 bg-gradient-to-r from-violet-500 to-purple-500 hover:from-violet-600 hover:to-purple-600 text-white rounded-xl text-xs font-semibold transition-all duration-200 shadow-sm active:scale-95"
+          >
+            🔀 Remix
+          </button>
+          <button
+            onClick={onAddToCollection}
+            className="py-2 px-3 bg-gray-50 dark:bg-zinc-800 hover:bg-orange-50 dark:hover:bg-orange-500/10 text-gray-400 hover:text-orange-500 border border-gray-100 dark:border-zinc-700 rounded-xl text-xs font-semibold transition-all duration-200 active:scale-95"
+            title="Add to collection"
+          >
+            📁
           </button>
           {!prompt.builtIn && (
             <button
