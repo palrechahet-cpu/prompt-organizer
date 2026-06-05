@@ -13,6 +13,7 @@ import AddToCollectionModal from './components/AddToCollectionModal'
 import Footer from './components/Footer'
 import Toast from './components/Toast'
 import LoginPage from './components/LoginPage'
+import OnboardingTour from "./components/OnboardingTour"
 import defaultPrompts from './data/prompts'
 
 function ShareModal({ prompt, onClose }) {
@@ -108,6 +109,7 @@ function AddCategoryModal({ onAdd, onClose }) {
 function App() {
   const [user, setUser] = useState(null)
   const [authLoading, setAuthLoading] = useState(true)
+  const [showTour, setShowTour] = useState(() => !localStorage.getItem("tourDone"))
   const [userPrompts, setUserPrompts] = useState([])
   const [favorites, setFavorites] = useState({})
   const [collections, setCollections] = useState([])
@@ -350,6 +352,7 @@ function App() {
             prompts={userPrompts}
           />
           <main className="flex-1 min-w-0">
+            {showTour && <OnboardingTour onFinish={() => { setShowTour(false); localStorage.setItem("tourDone", "1") }} />}
             <HeroSection promptCount={allPrompts.length} />
             <FeaturedSection prompts={allPrompts} onCopy={copyPrompt} onFavorite={toggleFavorite} onDelete={deletePrompt} onShare={(p) => setSharePrompt(p)} />
             <CategoriesSection
