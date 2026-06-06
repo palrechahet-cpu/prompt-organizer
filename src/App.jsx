@@ -13,7 +13,7 @@ import AddToCollectionModal from './components/AddToCollectionModal'
 import Footer from './components/Footer'
 import Toast from './components/Toast'
 import LoginPage from './components/LoginPage'
-import OnboardingTour from "./components/OnboardingTour"
+import OnboardingTour from './components/OnboardingTour'
 import defaultPrompts from './data/prompts'
 
 function ShareModal({ prompt, onClose }) {
@@ -93,12 +93,7 @@ function AddCategoryModal({ onAdd, onClose }) {
           className="w-full px-4 py-3 rounded-xl border border-gray-200 dark:border-zinc-700 bg-gray-50 dark:bg-zinc-800 text-gray-900 dark:text-gray-100 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
         />
         <div className="flex gap-2">
-          <button
-            onClick={() => { if (name.trim()) { onAdd(name.trim()); onClose() } }}
-            className="flex-1 py-3 bg-gradient-to-r from-orange-500 to-amber-500 text-white rounded-xl font-bold text-sm active:scale-95"
-          >
-            Create Category
-          </button>
+          <button onClick={() => { if (name.trim()) { onAdd(name.trim()); onClose() } }} className="flex-1 py-3 bg-gradient-to-r from-orange-500 to-amber-500 text-white rounded-xl font-bold text-sm active:scale-95">Create Category</button>
           <button onClick={onClose} className="flex-1 py-3 bg-gray-100 dark:bg-zinc-800 text-gray-500 rounded-xl font-bold text-sm active:scale-95">Cancel</button>
         </div>
       </div>
@@ -109,13 +104,14 @@ function AddCategoryModal({ onAdd, onClose }) {
 function App() {
   const [user, setUser] = useState(null)
   const [authLoading, setAuthLoading] = useState(true)
-  const [showTour, setShowTour] = useState(() => !localStorage.getItem("tourDone"))
+  const [showTour, setShowTour] = useState(() => !localStorage.getItem('tourDone'))
   const [userPrompts, setUserPrompts] = useState([])
   const [favorites, setFavorites] = useState({})
   const [collections, setCollections] = useState([])
   const [userCategories, setUserCategories] = useState([])
   const [activeCollection, setActiveCollection] = useState(null)
   const [darkMode, setDarkMode] = useState(() => localStorage.getItem('darkMode') !== 'false')
+  const [currentTheme, setCurrentTheme] = useState(() => localStorage.getItem('theme') || 'orange')
   const [search, setSearch] = useState('')
   const [activeCategory, setActiveCategory] = useState('All')
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false)
@@ -178,6 +174,20 @@ function App() {
     return () => unsubscribe()
   }, [user])
 
+  // Load appearance settings from Firestore
+  useEffect(() => {
+    if (!user) return
+    const ref = doc(db, 'users', user.uid, 'settings', 'appearance')
+    const unsubscribe = onSnapshot(ref, (snap) => {
+      if (snap.exists()) {
+        const data = snap.data()
+        if (data.theme) setCurrentTheme(data.theme)
+        if (typeof data.darkMode === 'boolean') setDarkMode(data.darkMode)
+      }
+    })
+    return () => unsubscribe()
+  }, [user])
+
   // Check for shared prompt in URL
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
@@ -185,12 +195,34 @@ function App() {
     if (shared) { try { const decoded = JSON.parse(decodeURIComponent(atob(shared))); setIncomingSharedPrompt(decoded) } catch { } }
   }, [])
 
+  // Sync darkMode to DOM + localStorage
   useEffect(() => {
     localStorage.setItem('darkMode', darkMode)
     document.documentElement.classList.toggle('dark', darkMode)
   }, [darkMode])
 
+  // Sync theme to localStorage
+  useEffect(() => {
+    localStorage.setItem('theme', currentTheme)
+  }, [currentTheme])
+
   const showToast = (message) => { setToast(message); setTimeout(() => setToast(null), 2500) }
+
+  const handleThemeChange = async (theme) => {
+    setCurrentTheme(theme)
+    if (user) {
+      const ref = doc(db, 'users', user.uid, 'settings', 'appearance')
+      await setDoc(ref, { theme, darkMode }, { merge: true })
+    }
+  }
+
+  const handleDarkModeChange = async (value) => {
+    setDarkMode(value)
+    if (user) {
+      const ref = doc(db, 'users', user.uid, 'settings', 'appearance')
+      await setDoc(ref, { theme: currentTheme, darkMode: value }, { merge: true })
+    }
+  }
 
   const addPrompt = async (newPrompt) => {
     if (!user) return
@@ -210,14 +242,12 @@ function App() {
 
   const toggleFavorite = async (id) => {
     if (!user) return
-    // User-added prompt
     const userPrompt = userPrompts.find(p => p.id === id)
     if (userPrompt) {
       const ref = doc(db, 'users', user.uid, 'prompts', id)
       await setDoc(ref, { ...userPrompt, favorite: !userPrompt.favorite })
       return
     }
-    // Built-in prompt — use favorites collection
     const favRef = doc(db, 'users', user.uid, 'favorites', String(id))
     if (favorites[String(id)]) {
       await deleteDoc(favRef)
@@ -300,7 +330,6 @@ function App() {
     window.history.replaceState({}, '', url.toString())
   }
 
-  // Merge built-in prompts with favorites map
   const allPrompts = [
     ...defaultPrompts.map(p => ({ ...p, favorite: !!favorites[String(p.id)] })),
     ...userPrompts
@@ -336,11 +365,13 @@ function App() {
           search={search}
           setSearch={setSearch}
           darkMode={darkMode}
-          setDarkMode={setDarkMode}
+          setDarkMode={handleDarkModeChange}
           showFavoritesOnly={showFavoritesOnly}
           setShowFavoritesOnly={setShowFavoritesOnly}
           user={user}
           onSignOut={() => signOut(auth)}
+          currentTheme={currentTheme}
+          onThemeChange={handleThemeChange}
         />
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6 sm:py-10 flex gap-6">
           <CollectionsSidebar
@@ -352,7 +383,7 @@ function App() {
             prompts={userPrompts}
           />
           <main className="flex-1 min-w-0">
-            {showTour && <OnboardingTour onFinish={() => { setShowTour(false); localStorage.setItem("tourDone", "1") }} />}
+            {showTour && <OnboardingTour onFinish={() => { setShowTour(false); localStorage.setItem('tourDone', '1') }} />}
             <HeroSection promptCount={allPrompts.length} />
             <FeaturedSection prompts={allPrompts} onCopy={copyPrompt} onFavorite={toggleFavorite} onDelete={deletePrompt} onShare={(p) => setSharePrompt(p)} />
             <CategoriesSection
