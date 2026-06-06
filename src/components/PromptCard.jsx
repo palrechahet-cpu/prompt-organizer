@@ -49,7 +49,8 @@ function SendToAIModal({ prompt, onClose }) {
             value={editedPrompt}
             onChange={e => setEditedPrompt(e.target.value)}
             rows={6}
-            className="w-full px-4 py-3 rounded-xl border border-gray-200 dark:border-white/8 bg-gray-50 dark:bg-white/4 text-gray-900 dark:text-gray-100 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/40 transition resize-none"
+            className="w-full px-4 py-3 rounded-xl border border-gray-200 dark:border-white/8 bg-gray-50 dark:bg-white/4 text-gray-900 dark:text-gray-100 text-sm focus:outline-none focus:ring-2 transition resize-none"
+            style={{ '--tw-ring-color': 'var(--color-primary)' }}
           />
           <p className="text-xs text-gray-400 mt-1.5">{editedPrompt.length} chars · Copied to clipboard on send</p>
         </div>
@@ -72,17 +73,17 @@ function SendToAIModal({ prompt, onClose }) {
 }
 
 const ACCENT_COLORS = {
-  blue:    'bg-blue-500',
-  purple:  'bg-purple-500',
-  orange:  'bg-orange-500',
-  green:   'bg-green-500',
-  cyan:    'bg-cyan-500',
-  pink:    'bg-pink-500',
-  violet:  'bg-violet-500',
-  emerald: 'bg-emerald-500',
-  sky:     'bg-sky-500',
-  rose:    'bg-rose-500',
-  gray:    'bg-gray-400',
+  blue:    { cls: 'bg-blue-500',    hex: '#3b82f6' },
+  purple:  { cls: 'bg-purple-500',  hex: '#8b5cf6' },
+  orange:  { cls: 'bg-orange-500',  hex: '#f97316' },
+  green:   { cls: 'bg-green-500',   hex: '#22c55e' },
+  cyan:    { cls: 'bg-cyan-500',    hex: '#06b6d4' },
+  pink:    { cls: 'bg-pink-500',    hex: '#ec4899' },
+  violet:  { cls: 'bg-violet-500',  hex: '#8b5cf6' },
+  emerald: { cls: 'bg-emerald-500', hex: '#10b981' },
+  sky:     { cls: 'bg-sky-500',     hex: '#0ea5e9' },
+  rose:    { cls: 'bg-rose-500',    hex: '#f43f5e' },
+  gray:    { cls: 'bg-gray-400',    hex: '#9ca3af' },
 }
 
 const CATEGORY_CONFIG = {
@@ -105,7 +106,7 @@ export default function PromptCard({ prompt, onFavorite, onCopy, onDelete, onSha
   const [copied, setCopied] = useState(false)
 
   const config = CATEGORY_CONFIG[prompt.category] || { color: 'gray', emoji: '📌' }
-  const accentColor = ACCENT_COLORS[config.color] || ACCENT_COLORS.gray
+  const accent = ACCENT_COLORS[config.color] || ACCENT_COLORS.gray
 
   const handleCopy = (e) => {
     e.stopPropagation()
@@ -123,12 +124,18 @@ export default function PromptCard({ prompt, onFavorite, onCopy, onDelete, onSha
         onClick={() => setExpanded(!expanded)}
         className={`group relative bg-white dark:bg-[#111] rounded-2xl border transition-all duration-300 cursor-pointer overflow-hidden flex flex-col
           ${expanded
-            ? 'border-orange-200 dark:border-orange-500/25 shadow-xl shadow-orange-50 dark:shadow-orange-950/20'
+            ? 'shadow-xl'
             : 'border-gray-100 dark:border-white/6 hover:border-gray-200 dark:hover:border-white/12 hover:shadow-md hover:shadow-gray-100/80 dark:hover:shadow-black/40 hover:-translate-y-0.5'
           }`}
+        style={expanded ? {
+          borderColor: 'var(--color-primary)',
+          boxShadow: `0 20px 40px -12px color-mix(in srgb, var(--color-primary) 15%, transparent)`
+        } : {}}
       >
-        {/* Left accent bar */}
-        <div className={`absolute left-0 top-0 bottom-0 w-[3px] ${accentColor} opacity-60 ${expanded ? 'opacity-100' : 'group-hover:opacity-80'} transition-opacity duration-200`} />
+        {/* Left accent bar — per category color */}
+        <div
+          className={`absolute left-0 top-0 bottom-0 w-[3px] ${accent.cls} transition-opacity duration-200 ${expanded ? 'opacity-100' : 'opacity-60 group-hover:opacity-80'}`}
+        />
 
         <div className="pl-5 pr-4 pt-4 pb-4 flex flex-col gap-3">
 
@@ -139,14 +146,15 @@ export default function PromptCard({ prompt, onFavorite, onCopy, onDelete, onSha
                 {prompt.title}
               </h3>
               <div className="flex items-center gap-1.5 mt-1">
-                <div className={`w-1 h-1 rounded-full ${accentColor} opacity-70`} />
+                <div className={`w-1 h-1 rounded-full ${accent.cls} opacity-70`} />
                 <span className="text-xs text-gray-400 dark:text-gray-500">{prompt.category}</span>
               </div>
             </div>
             <div className="flex items-center gap-1 flex-shrink-0 mt-0.5">
               <button
                 onClick={(e) => { e.stopPropagation(); onFavorite() }}
-                className={`w-6 h-6 flex items-center justify-center rounded-md transition-all duration-150 text-sm hover:scale-110 ${prompt.favorite ? 'text-amber-400' : 'text-gray-200 dark:text-white/10 hover:text-amber-300'}`}
+                className="w-6 h-6 flex items-center justify-center rounded-md transition-all duration-150 text-sm hover:scale-110"
+                style={prompt.favorite ? { color: 'var(--color-primary)' } : { color: 'rgba(156,163,175,0.3)' }}
               >
                 ★
               </button>
@@ -167,10 +175,7 @@ export default function PromptCard({ prompt, onFavorite, onCopy, onDelete, onSha
           {prompt.tags?.length > 0 && (
             <div className="flex flex-wrap gap-1">
               {prompt.tags.slice(0, expanded ? undefined : 3).map(tag => (
-                <span
-                  key={tag}
-                  className="px-1.5 py-0.5 text-gray-400 dark:text-gray-600 text-xs rounded-md border border-gray-100 dark:border-white/6"
-                >
+                <span key={tag} className="px-1.5 py-0.5 text-gray-400 dark:text-gray-600 text-xs rounded-md border border-gray-100 dark:border-white/6">
                   #{tag}
                 </span>
               ))}
@@ -198,7 +203,8 @@ export default function PromptCard({ prompt, onFavorite, onCopy, onDelete, onSha
             {/* Send to AI */}
             <button
               onClick={(e) => { e.stopPropagation(); setShowAIModal(true) }}
-              className="flex-1 py-1.5 bg-orange-500 hover:bg-orange-600 text-white rounded-lg text-xs font-medium transition-all duration-150 active:scale-95"
+              className="flex-1 py-1.5 text-white rounded-lg text-xs font-medium transition-all duration-150 active:scale-95"
+              style={{ backgroundColor: 'var(--color-primary)' }}
             >
               🚀 Send
             </button>
@@ -215,12 +221,15 @@ export default function PromptCard({ prompt, onFavorite, onCopy, onDelete, onSha
             <button
               onClick={(e) => { e.stopPropagation(); onAddToCollection() }}
               title="Add to collection"
-              className="w-7 h-7 flex items-center justify-center rounded-lg bg-gray-50 dark:bg-white/5 hover:bg-orange-50 dark:hover:bg-orange-500/10 text-gray-300 dark:text-gray-600 hover:text-orange-400 border border-gray-100 dark:border-white/6 transition-all duration-150 active:scale-95 text-xs"
+              className="w-7 h-7 flex items-center justify-center rounded-lg bg-gray-50 dark:bg-white/5 text-gray-300 dark:text-gray-600 border border-gray-100 dark:border-white/6 transition-all duration-150 active:scale-95 text-xs hover:text-white"
+              style={{ '--hover-bg': 'var(--color-primary)' }}
+              onMouseEnter={e => e.currentTarget.style.backgroundColor = 'var(--color-primary)'}
+              onMouseLeave={e => e.currentTarget.style.backgroundColor = ''}
             >
               📁
             </button>
 
-            {/* Delete — only for user prompts */}
+            {/* Delete */}
             {!prompt.builtIn && (
               <button
                 onClick={(e) => { e.stopPropagation(); onDelete() }}
