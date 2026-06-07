@@ -11,7 +11,7 @@ export default function AddPromptForm({ onAdd, onBulkAdd }) {
   const jsonFileRef = useRef()
   const csvFileRef = useRef()
 
-  const categories = ['Research', 'Writing', 'AI', 'Productivity', 'Education', 'Psychology', 'Creative', 'Health & Fitness', 'Tech & Coding', 'Social Media']
+  const categories = ['Research', 'Writing', 'AI', 'Productivity', 'Education', 'Creative', 'Health & Fitness', 'Tech & Coding', 'Social Media', 'Product & Strategy', 'Ideation & Brainstorm']
 
   const handleSubmit = () => {
     if (form.title.trim() === '' || form.prompt.trim() === '') return

@@ -1,18 +1,18 @@
 export default function CategoriesSection({ categories, activeCategory, onCategoryChange, onAddCategory, onDeleteCategory, userCategories = [] }) {
   const categoryConfig = {
-    'All':              { emoji: '✨' },
-    'Research':         { emoji: '📚' },
-    'Writing':          { emoji: '✍️' },
-    'Education':        { emoji: '🎓' },
-    'Psychology':       { emoji: '🧠' },
-    'AI':               { emoji: '🤖' },
-    'Productivity':     { emoji: '⚡' },
-    'Creative':         { emoji: '🎨' },
-    'Health & Fitness': { emoji: '💪' },
-    'Tech & Coding':    { emoji: '💻' },
-    'Social Media':     { emoji: '📱' },
+    'All':                  { emoji: '✨' },
+    'Research':             { emoji: '📚' },
+    'Writing':              { emoji: '✍️' },
+    'Education':            { emoji: '🎓' },
+    'AI':                   { emoji: '🤖' },
+    'Productivity':         { emoji: '⚡' },
+    'Creative':             { emoji: '🎨' },
+    'Health & Fitness':     { emoji: '💪' },
+    'Tech & Coding':        { emoji: '💻' },
+    'Social Media':         { emoji: '📱' },
+    'Product & Strategy':   { emoji: '🚀' },
+    'Ideation & Brainstorm': { emoji: '💡' },
   }
-
   return (
     <section className="mb-8">
       <h2 className="text-xs font-bold uppercase tracking-widest text-gray-400 dark:text-gray-600 mb-4">Browse Categories</h2>
