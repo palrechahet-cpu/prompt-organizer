@@ -28,14 +28,17 @@ export default function CollectionsSidebar({ collections, activeCollection, onSe
         {/* All Prompts */}
         <button
           onClick={() => onSelectCollection(null)}
-          className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200 ${
-            activeCollection === null
-              ? 'bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-md'
-              : 'text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-zinc-800'
-          }`}
+          className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200"
+          style={activeCollection === null ? {
+            background: 'linear-gradient(to right, var(--color-primary), var(--color-secondary))',
+            color: 'white',
+            boxShadow: `0 4px 12px color-mix(in srgb, var(--color-primary) 30%, transparent)`
+          } : {}}
+          onMouseEnter={e => { if (activeCollection !== null) e.currentTarget.style.backgroundColor = 'rgba(0,0,0,0.05)' }}
+          onMouseLeave={e => { if (activeCollection !== null) e.currentTarget.style.backgroundColor = '' }}
         >
           <span>✨</span>
-          <span className="flex-1 text-left">All Prompts</span>
+          <span className="flex-1 text-left" style={activeCollection === null ? {} : { color: 'var(--color-primary)' }}>All Prompts</span>
           <span className="text-xs opacity-60">{prompts.length}</span>
         </button>
 
@@ -44,11 +47,14 @@ export default function CollectionsSidebar({ collections, activeCollection, onSe
           <div key={col.id} className="group/col relative">
             <button
               onClick={() => onSelectCollection(col)}
-              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200 ${
-                activeCollection?.id === col.id
-                  ? 'bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-md'
-                  : 'text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-zinc-800'
-              }`}
+              className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200"
+              style={activeCollection?.id === col.id ? {
+                background: 'linear-gradient(to right, var(--color-primary), var(--color-secondary))',
+                color: 'white',
+                boxShadow: `0 4px 12px color-mix(in srgb, var(--color-primary) 30%, transparent)`
+              } : { color: '#6b7280' }}
+              onMouseEnter={e => { if (activeCollection?.id !== col.id) e.currentTarget.style.backgroundColor = 'rgba(0,0,0,0.04)' }}
+              onMouseLeave={e => { if (activeCollection?.id !== col.id) e.currentTarget.style.backgroundColor = '' }}
             >
               <span>{col.emoji}</span>
               <span className="flex-1 text-left truncate">{col.name}</span>
@@ -57,9 +63,7 @@ export default function CollectionsSidebar({ collections, activeCollection, onSe
             <button
               onClick={() => onDeleteCollection(col.id)}
               className="absolute right-2 top-1/2 -translate-y-1/2 w-5 h-5 bg-red-500 text-white rounded-full text-xs hidden group-hover/col:flex items-center justify-center"
-            >
-              ×
-            </button>
+            >×</button>
           </div>
         ))}
 
@@ -71,7 +75,10 @@ export default function CollectionsSidebar({ collections, activeCollection, onSe
                 <button
                   key={e}
                   onClick={() => setNewEmoji(e)}
-                  className={`text-base p-1 rounded-lg transition ${newEmoji === e ? 'bg-orange-100 dark:bg-orange-500/20' : 'hover:bg-gray-100 dark:hover:bg-zinc-700'}`}
+                  className="text-base p-1 rounded-lg transition"
+                  style={newEmoji === e ? {
+                    backgroundColor: 'color-mix(in srgb, var(--color-primary) 15%, transparent)'
+                  } : {}}
                 >
                   {e}
                 </button>
@@ -84,17 +91,27 @@ export default function CollectionsSidebar({ collections, activeCollection, onSe
               onKeyDown={e => e.key === 'Enter' && handleAdd()}
               placeholder="Collection name..."
               autoFocus
-              className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-gray-900 dark:text-gray-100 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
+              className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-gray-900 dark:text-gray-100 text-sm focus:outline-none focus:ring-2 transition"
+              style={{ '--tw-ring-color': 'var(--color-primary)' }}
             />
             <div className="flex gap-2">
-              <button onClick={handleAdd} className="flex-1 py-1.5 bg-gradient-to-r from-orange-500 to-amber-500 text-white rounded-lg text-xs font-bold">Create</button>
-              <button onClick={() => setAdding(false)} className="flex-1 py-1.5 bg-gray-100 dark:bg-zinc-700 text-gray-500 rounded-lg text-xs font-bold">Cancel</button>
+              <button
+                onClick={handleAdd}
+                className="flex-1 py-1.5 text-white rounded-lg text-xs font-bold transition"
+                style={{ backgroundColor: 'var(--color-primary)' }}
+              >Create</button>
+              <button
+                onClick={() => setAdding(false)}
+                className="flex-1 py-1.5 bg-gray-100 dark:bg-zinc-700 text-gray-500 rounded-lg text-xs font-bold"
+              >Cancel</button>
             </div>
           </div>
         ) : (
           <button
             onClick={() => setAdding(true)}
-            className="w-full flex items-center gap-2 px-3 py-2.5 rounded-xl text-sm text-gray-400 hover:text-orange-500 border border-dashed border-gray-200 dark:border-zinc-700 hover:border-orange-300 transition-all duration-200"
+            className="w-full flex items-center gap-2 px-3 py-2.5 rounded-xl text-sm text-gray-400 border border-dashed border-gray-200 dark:border-zinc-700 transition-all duration-200"
+            onMouseEnter={e => { e.currentTarget.style.color = 'var(--color-primary)'; e.currentTarget.style.borderColor = 'var(--color-primary)' }}
+            onMouseLeave={e => { e.currentTarget.style.color = ''; e.currentTarget.style.borderColor = '' }}
           >
             <span>+</span>
             <span>New Collection</span>
