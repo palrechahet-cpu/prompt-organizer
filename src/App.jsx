@@ -16,6 +16,20 @@ import LoginPage from './components/LoginPage'
 import OnboardingTour from './components/OnboardingTour'
 import defaultPrompts from './data/prompts'
 
+const THEME_COLORS = {
+  orange: { primary: '#f97316', secondary: '#f59e0b' },
+  blue:   { primary: '#3b82f6', secondary: '#06b6d4' },
+  purple: { primary: '#8b5cf6', secondary: '#a855f7' },
+  green:  { primary: '#22c55e', secondary: '#10b981' },
+  rose:   { primary: '#f43f5e', secondary: '#ec4899' },
+}
+
+function applyTheme(theme) {
+  const c = THEME_COLORS[theme] || THEME_COLORS.orange
+  document.documentElement.style.setProperty('--color-primary', c.primary)
+  document.documentElement.style.setProperty('--color-secondary', c.secondary)
+}
+
 function ShareModal({ prompt, onClose }) {
   const [copied, setCopied] = useState(false)
   const shareUrl = (() => {
@@ -40,7 +54,7 @@ function ShareModal({ prompt, onClose }) {
         </div>
         <div className="flex gap-2 items-center">
           <input readOnly value={shareUrl} className="flex-1 text-xs bg-gray-50 dark:bg-zinc-800 border border-gray-200 dark:border-zinc-700 rounded-xl px-3 py-2.5 text-gray-500 dark:text-gray-400 truncate focus:outline-none" />
-          <button onClick={copyLink} className={`flex-shrink-0 px-4 py-2.5 rounded-xl text-xs font-semibold transition-all duration-200 active:scale-95 ${copied ? 'bg-green-500 text-white' : 'bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white shadow-sm'}`}>{copied ? '✓ Copied!' : 'Copy Link'}</button>
+          <button onClick={copyLink} className={`flex-shrink-0 px-4 py-2.5 rounded-xl text-xs font-semibold transition-all duration-200 active:scale-95 ${copied ? 'bg-green-500 text-white' : 'text-white shadow-sm'}`} style={{ backgroundColor: copied ? undefined : 'var(--color-primary)' }}>{copied ? '✓ Copied!' : 'Copy Link'}</button>
         </div>
         <p className="text-xs text-gray-400 dark:text-gray-600 text-center">Anyone with this link can view and import this prompt.</p>
       </div>
@@ -56,7 +70,7 @@ function SharedPromptModal({ prompt, onImport, onClose }) {
         <p className="text-sm text-gray-500 dark:text-gray-400">Someone shared this prompt with you. Add it to your library?</p>
         <div className="bg-gray-50 dark:bg-zinc-800 rounded-xl p-4 border border-gray-100 dark:border-zinc-700 flex flex-col gap-2">
           <p className="font-semibold text-gray-800 dark:text-white text-sm">{prompt.title}</p>
-          <span className="text-xs text-orange-500 font-medium">{prompt.category}</span>
+          <span className="text-xs font-medium" style={{ color: 'var(--color-primary)' }}>{prompt.category}</span>
           <p className="text-gray-400 dark:text-gray-500 text-xs leading-relaxed line-clamp-4">{prompt.prompt}</p>
           {prompt.tags?.length > 0 && (
             <div className="flex flex-wrap gap-1 mt-1">
@@ -65,7 +79,7 @@ function SharedPromptModal({ prompt, onImport, onClose }) {
           )}
         </div>
         <div className="flex gap-2">
-          <button onClick={onImport} className="flex-1 py-2.5 bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white rounded-xl text-sm font-semibold transition-all duration-200 shadow-sm active:scale-95">Add to My Library</button>
+          <button onClick={onImport} className="flex-1 py-2.5 text-white rounded-xl text-sm font-semibold transition-all duration-200 shadow-sm active:scale-95" style={{ backgroundColor: 'var(--color-primary)' }}>Add to My Library</button>
           <button onClick={onClose} className="py-2.5 px-4 bg-gray-100 dark:bg-zinc-800 hover:bg-gray-200 dark:hover:bg-zinc-700 text-gray-500 dark:text-gray-400 rounded-xl text-sm font-semibold transition-all duration-200 active:scale-95">Dismiss</button>
         </div>
       </div>
@@ -90,10 +104,11 @@ function AddCategoryModal({ onAdd, onClose }) {
           onKeyDown={e => e.key === 'Enter' && name.trim() && (onAdd(name.trim()), onClose())}
           placeholder="e.g. Client Work, Personal, Side Projects"
           autoFocus
-          className="w-full px-4 py-3 rounded-xl border border-gray-200 dark:border-zinc-700 bg-gray-50 dark:bg-zinc-800 text-gray-900 dark:text-gray-100 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
+          className="w-full px-4 py-3 rounded-xl border border-gray-200 dark:border-zinc-700 bg-gray-50 dark:bg-zinc-800 text-gray-900 dark:text-gray-100 text-sm focus:outline-none focus:ring-2 transition"
+          style={{ '--tw-ring-color': 'var(--color-primary)' }}
         />
         <div className="flex gap-2">
-          <button onClick={() => { if (name.trim()) { onAdd(name.trim()); onClose() } }} className="flex-1 py-3 bg-gradient-to-r from-orange-500 to-amber-500 text-white rounded-xl font-bold text-sm active:scale-95">Create Category</button>
+          <button onClick={() => { if (name.trim()) { onAdd(name.trim()); onClose() } }} className="flex-1 py-3 text-white rounded-xl font-bold text-sm active:scale-95" style={{ backgroundColor: 'var(--color-primary)' }}>Create Category</button>
           <button onClick={onClose} className="flex-1 py-3 bg-gray-100 dark:bg-zinc-800 text-gray-500 rounded-xl font-bold text-sm active:scale-95">Cancel</button>
         </div>
       </div>
@@ -111,7 +126,11 @@ function App() {
   const [userCategories, setUserCategories] = useState([])
   const [activeCollection, setActiveCollection] = useState(null)
   const [darkMode, setDarkMode] = useState(() => localStorage.getItem('darkMode') !== 'false')
-  const [currentTheme, setCurrentTheme] = useState(() => localStorage.getItem('theme') || 'orange')
+  const [currentTheme, setCurrentTheme] = useState(() => {
+    const saved = localStorage.getItem('theme') || 'orange'
+    applyTheme(saved)
+    return saved
+  })
   const [search, setSearch] = useState('')
   const [activeCategory, setActiveCategory] = useState('All')
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false)
@@ -141,7 +160,7 @@ function App() {
     return () => unsubscribe()
   }, [user])
 
-  // Load favorites for built-in prompts
+  // Load favorites
   useEffect(() => {
     if (!user) { setFavorites({}); return }
     const ref = collection(db, 'users', user.uid, 'favorites')
@@ -181,7 +200,7 @@ function App() {
     const unsubscribe = onSnapshot(ref, (snap) => {
       if (snap.exists()) {
         const data = snap.data()
-        if (data.theme) setCurrentTheme(data.theme)
+        if (data.theme) { setCurrentTheme(data.theme); applyTheme(data.theme) }
         if (typeof data.darkMode === 'boolean') setDarkMode(data.darkMode)
       }
     })
@@ -195,21 +214,23 @@ function App() {
     if (shared) { try { const decoded = JSON.parse(decodeURIComponent(atob(shared))); setIncomingSharedPrompt(decoded) } catch { } }
   }, [])
 
-  // Sync darkMode to DOM + localStorage
+  // Sync darkMode
   useEffect(() => {
     localStorage.setItem('darkMode', darkMode)
     document.documentElement.classList.toggle('dark', darkMode)
   }, [darkMode])
 
-  // Sync theme to localStorage
+  // Sync theme — apply CSS variables immediately
   useEffect(() => {
     localStorage.setItem('theme', currentTheme)
+    applyTheme(currentTheme)
   }, [currentTheme])
 
   const showToast = (message) => { setToast(message); setTimeout(() => setToast(null), 2500) }
 
   const handleThemeChange = async (theme) => {
     setCurrentTheme(theme)
+    applyTheme(theme)
     if (user) {
       const ref = doc(db, 'users', user.uid, 'settings', 'appearance')
       await setDoc(ref, { theme, darkMode }, { merge: true })
@@ -385,7 +406,7 @@ function App() {
           <main className="flex-1 min-w-0">
             {showTour && <OnboardingTour onFinish={() => { setShowTour(false); localStorage.setItem('tourDone', '1') }} />}
             <HeroSection promptCount={allPrompts.length} />
-            <FeaturedSection prompts={allPrompts} onCopy={copyPrompt} onFavorite={toggleFavorite} onDelete={deletePrompt} onShare={(p) => setSharePrompt(p)} />
+            <FeaturedSection prompts={allPrompts} onCopy={copyPrompt} onFavorite={toggleFavorite} onDelete={deletePrompt} onShare={(p) => setSharePrompt(p)} onAddToCollection={(p) => setCollectionModalPrompt(p)} />
             <CategoriesSection
               categories={allCategories}
               activeCategory={activeCategory}
