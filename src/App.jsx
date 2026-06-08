@@ -1,3 +1,4 @@
+import AIChat from './components/AIChat'
 import { useState, useEffect } from 'react'
 import { onAuthStateChanged, signOut } from 'firebase/auth'
 import { collection, doc, setDoc, deleteDoc, onSnapshot } from 'firebase/firestore'
@@ -17,6 +18,7 @@ import LoginPage from './components/LoginPage'
 import OnboardingTour from './components/OnboardingTour'
 import defaultPrompts from './data/prompts'
 
+const [showChat, setShowChat] = useState(false)
 const THEME_COLORS = {
   orange: { primary: '#f97316', secondary: '#f59e0b' },
   blue:   { primary: '#3b82f6', secondary: '#06b6d4' },
@@ -419,6 +421,8 @@ function App() {
           onSignOut={() => signOut(auth)}
           currentTheme={currentTheme}
           onThemeChange={handleThemeChange}
+          onChatOpen={() => setShowChat(true)}
+/>
         />
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6 sm:py-10 flex gap-6">
           <CollectionsSidebar
@@ -500,6 +504,13 @@ function App() {
         )}
         {showAddCategory && <AddCategoryModal onAdd={addCategory} onClose={() => setShowAddCategory(false)} />}
       </div>
+      {showChat && (
+  <AIChat
+    user={user}
+    allPrompts={allPrompts}
+    onClose={() => setShowChat(false)}
+  />
+)}
     </div>
   )
 }

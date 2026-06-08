@@ -1,6 +1,7 @@
+export default function Navbar({ search, setSearch, darkMode, setDarkMode, showFavoritesOnly, setShowFavoritesOnly, user, onSignOut, currentTheme, onThemeChange, onChatOpen }) {
 import { useState } from 'react'
 import ThemePanel from './ThemePanel'
-
+export default function Navbar({ search, setSearch, darkMode, setDarkMode, showFavoritesOnly, setShowFavoritesOnly, user, onSignOut, currentTheme, onThemeChange, onChatOpen }) {
 export default function Navbar({ search, setSearch, darkMode, setDarkMode, showFavoritesOnly, setShowFavoritesOnly, user, onSignOut, currentTheme, onThemeChange }) {
   const [mobileSearchOpen, setMobileSearchOpen] = useState(false)
   const [showThemePanel, setShowThemePanel] = useState(false)
@@ -75,12 +76,19 @@ export default function Navbar({ search, setSearch, darkMode, setDarkMode, showF
               </button>
 
               <button
-                onClick={() => setShowThemePanel(true)}
-                className="p-2 rounded-lg bg-[#21262d] border border-[#30363d] text-gray-400 hover:text-gray-200 hover:border-gray-500 transition"
-                title="Appearance settings"
-              >
-                ⚙️
-              </button>
+  onClick={() => setShowThemePanel(true)}
+  className="p-2 rounded-lg bg-[#21262d] border border-[#30363d] text-gray-400 hover:text-gray-200 hover:border-gray-500 transition"
+  title="Appearance settings"
+>
+  ⚙️
+</button>
+<button
+  onClick={onChatOpen}
+  className="p-2 rounded-lg bg-[#21262d] border border-[#30363d] text-gray-400 hover:text-gray-200 hover:border-gray-500 transition"
+  title="AI Assistant"
+>
+  💬
+</button>
 
               {user && (
                 <div className="flex items-center gap-2">
