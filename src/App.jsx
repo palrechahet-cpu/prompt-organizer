@@ -5,6 +5,7 @@ import { auth, db } from './firebase'
 import Navbar from './components/Navbar'
 import HeroSection from './components/HeroSection'
 import FeaturedSection from './components/FeaturedSection'
+import SmartSection from './components/SmartSection'
 import CategoriesSection from './components/CategoriesSection'
 import AddPromptForm from './components/AddPromptForm'
 import PromptCard from './components/PromptCard'
@@ -122,6 +123,7 @@ function App() {
   const [showTour, setShowTour] = useState(() => !localStorage.getItem('tourDone'))
   const [userPrompts, setUserPrompts] = useState([])
   const [favorites, setFavorites] = useState({})
+  const [usageStats, setUsageStats] = useState({})
   const [collections, setCollections] = useState([])
   const [userCategories, setUserCategories] = useState([])
   const [activeCollection, setActiveCollection] = useState(null)
@@ -172,6 +174,17 @@ function App() {
     return () => unsubscribe()
   }, [user])
 
+  // Load usage stats
+  useEffect(() => {
+    if (!user) { setUsageStats({}); return }
+    const ref = doc(db, 'users', user.uid, 'settings', 'usage')
+    const unsubscribe = onSnapshot(ref, (snap) => {
+      if (snap.exists()) setUsageStats(snap.data())
+      else setUsageStats({})
+    })
+    return () => unsubscribe()
+  }, [user])
+
   // Load collections
   useEffect(() => {
     if (!user) { setCollections([]); return }
@@ -193,7 +206,7 @@ function App() {
     return () => unsubscribe()
   }, [user])
 
-  // Load appearance settings from Firestore
+  // Load appearance settings
   useEffect(() => {
     if (!user) return
     const ref = doc(db, 'users', user.uid, 'settings', 'appearance')
@@ -220,13 +233,21 @@ function App() {
     document.documentElement.classList.toggle('dark', darkMode)
   }, [darkMode])
 
-  // Sync theme — apply CSS variables immediately
+  // Sync theme
   useEffect(() => {
     localStorage.setItem('theme', currentTheme)
     applyTheme(currentTheme)
   }, [currentTheme])
 
   const showToast = (message) => { setToast(message); setTimeout(() => setToast(null), 2500) }
+
+  // Track usage in Firestore
+  const trackUsage = async (promptId) => {
+    if (!user || !promptId) return
+    const ref = doc(db, 'users', user.uid, 'settings', 'usage')
+    const current = usageStats[String(promptId)] || 0
+    await setDoc(ref, { [String(promptId)]: current + 1 }, { merge: true })
+  }
 
   const handleThemeChange = async (theme) => {
     setCurrentTheme(theme)
@@ -263,6 +284,7 @@ function App() {
 
   const toggleFavorite = async (id) => {
     if (!user) return
+    trackUsage(id)
     const userPrompt = userPrompts.find(p => p.id === id)
     if (userPrompt) {
       const ref = doc(db, 'users', user.uid, 'prompts', id)
@@ -333,7 +355,11 @@ function App() {
     showToast(`Category "${name}" deleted!`)
   }
 
-  const copyPrompt = (text) => { navigator.clipboard.writeText(text); showToast('Prompt copied!') }
+  const copyPrompt = (text, promptId) => {
+    navigator.clipboard.writeText(text)
+    showToast('Prompt copied!')
+    if (promptId) trackUsage(promptId)
+  }
 
   const importSharedPrompt = () => {
     if (!incomingSharedPrompt) return
@@ -405,8 +431,28 @@ function App() {
           />
           <main className="flex-1 min-w-0">
             {showTour && <OnboardingTour onFinish={() => { setShowTour(false); localStorage.setItem('tourDone', '1') }} />}
-            <HeroSection promptCount={allPrompts.length} />
-            <FeaturedSection prompts={allPrompts} onCopy={copyPrompt} onFavorite={toggleFavorite} onDelete={deletePrompt} onShare={(p) => setSharePrompt(p)} onAddToCollection={(p) => setCollectionModalPrompt(p)} />
+            <HeroSection
+              promptCount={allPrompts.length}
+              user={user}
+              usageStats={usageStats}
+            />
+            <SmartSection
+              usageStats={usageStats}
+              allPrompts={allPrompts}
+              onCopy={(text, id) => copyPrompt(text, id)}
+              onFavorite={toggleFavorite}
+              onDelete={deletePrompt}
+              onShare={(p) => setSharePrompt(p)}
+              onAddToCollection={(p) => setCollectionModalPrompt(p)}
+            />
+            <FeaturedSection
+              prompts={allPrompts}
+              onCopy={(text) => copyPrompt(text)}
+              onFavorite={toggleFavorite}
+              onDelete={deletePrompt}
+              onShare={(p) => setSharePrompt(p)}
+              onAddToCollection={(p) => setCollectionModalPrompt(p)}
+            />
             <CategoriesSection
               categories={allCategories}
               activeCategory={activeCategory}
@@ -429,7 +475,7 @@ function App() {
                     key={p.id}
                     prompt={p}
                     onFavorite={() => toggleFavorite(p.id)}
-                    onCopy={() => copyPrompt(p.prompt)}
+                    onCopy={() => copyPrompt(p.prompt, p.id)}
                     onDelete={() => deletePrompt(p.id)}
                     onShare={() => setSharePrompt(p)}
                     onAddToCollection={() => setCollectionModalPrompt(p)}
