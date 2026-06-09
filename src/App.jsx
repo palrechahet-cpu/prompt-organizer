@@ -1,4 +1,3 @@
-import AIChat from './components/AIChat'
 import { useState, useEffect } from 'react'
 import { onAuthStateChanged, signOut } from 'firebase/auth'
 import { collection, doc, setDoc, deleteDoc, onSnapshot } from 'firebase/firestore'
@@ -16,9 +15,9 @@ import Footer from './components/Footer'
 import Toast from './components/Toast'
 import LoginPage from './components/LoginPage'
 import OnboardingTour from './components/OnboardingTour'
+import AIChat from './components/AIChat'
 import defaultPrompts from './data/prompts'
 
-const [showChat, setShowChat] = useState(false)
 const THEME_COLORS = {
   orange: { primary: '#f97316', secondary: '#f59e0b' },
   blue:   { primary: '#3b82f6', secondary: '#06b6d4' },
@@ -123,6 +122,7 @@ function App() {
   const [user, setUser] = useState(null)
   const [authLoading, setAuthLoading] = useState(true)
   const [showTour, setShowTour] = useState(() => !localStorage.getItem('tourDone'))
+  const [showChat, setShowChat] = useState(false)
   const [userPrompts, setUserPrompts] = useState([])
   const [favorites, setFavorites] = useState({})
   const [usageStats, setUsageStats] = useState({})
@@ -243,7 +243,6 @@ function App() {
 
   const showToast = (message) => { setToast(message); setTimeout(() => setToast(null), 2500) }
 
-  // Track usage in Firestore
   const trackUsage = async (promptId) => {
     if (!user || !promptId) return
     const ref = doc(db, 'users', user.uid, 'settings', 'usage')
@@ -422,7 +421,6 @@ function App() {
           currentTheme={currentTheme}
           onThemeChange={handleThemeChange}
           onChatOpen={() => setShowChat(true)}
-/>
         />
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6 sm:py-10 flex gap-6">
           <CollectionsSidebar
@@ -503,14 +501,14 @@ function App() {
           />
         )}
         {showAddCategory && <AddCategoryModal onAdd={addCategory} onClose={() => setShowAddCategory(false)} />}
+        {showChat && (
+          <AIChat
+            user={user}
+            allPrompts={allPrompts}
+            onClose={() => setShowChat(false)}
+          />
+        )}
       </div>
-      {showChat && (
-  <AIChat
-    user={user}
-    allPrompts={allPrompts}
-    onClose={() => setShowChat(false)}
-  />
-)}
     </div>
   )
 }
