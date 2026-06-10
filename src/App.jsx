@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { onAuthStateChanged, signOut } from 'firebase/auth'
-import { collection, doc, setDoc, deleteDoc, onSnapshot } from 'firebase/firestore'
+import { collection, doc, setDoc, deleteDoc, onSnapshot, getDocs } from 'firebase/firestore'
 import { auth, db } from './firebase'
 import Navbar from './components/Navbar'
 import HeroSection from './components/HeroSection'
@@ -360,6 +360,27 @@ function App() {
     if (promptId) trackUsage(promptId)
   }
 
+  const deleteAccount = async () => {
+    if (!user) return
+    try {
+      const cols = ['prompts', 'favorites', 'collections', 'categories']
+      await Promise.all(cols.map(async (col) => {
+        const ref = collection(db, 'users', user.uid, col)
+        const snapshot = await getDocs(ref)
+        await Promise.all(snapshot.docs.map(d => deleteDoc(d.ref)))
+      }))
+      await Promise.allSettled([
+        deleteDoc(doc(db, 'users', user.uid, 'settings', 'appearance')),
+        deleteDoc(doc(db, 'users', user.uid, 'settings', 'usage')),
+        deleteDoc(doc(db, 'users', user.uid, 'settings', 'apikey')),
+      ])
+      await user.delete()
+    } catch (err) {
+      console.error('Delete account error:', err)
+      showToast('Please sign out and sign back in, then try again.')
+    }
+  }
+
   const importSharedPrompt = () => {
     if (!incomingSharedPrompt) return
     addPrompt(incomingSharedPrompt)
@@ -418,6 +439,7 @@ function App() {
           onSignOut={() => signOut(auth)}
           currentTheme={currentTheme}
           onThemeChange={handleThemeChange}
+          onDeleteAccount={deleteAccount}
         />
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6 sm:py-10 flex gap-6">
           <CollectionsSidebar
@@ -498,11 +520,6 @@ function App() {
           />
         )}
         {showAddCategory && <AddCategoryModal onAdd={addCategory} onClose={() => setShowAddCategory(false)} />}
-            user={user}
-            allPrompts={allPrompts}
-            onClose={() => setShowChat(false)}
-          />
-        )}
       </div>
     </div>
   )
