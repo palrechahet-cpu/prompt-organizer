@@ -1,7 +1,6 @@
 import { useState } from 'react'
 import ThemePanel from './ThemePanel'
 
-export default function Navbar({ search, setSearch, darkMode, setDarkMode, showFavoritesOnly, setShowFavoritesOnly, user, onSignOut, currentTheme, onThemeChange, onChatOpen }) {
   const [mobileSearchOpen, setMobileSearchOpen] = useState(false)
   const [showThemePanel, setShowThemePanel] = useState(false)
 
@@ -83,11 +82,8 @@ export default function Navbar({ search, setSearch, darkMode, setDarkMode, showF
               </button>
 
               <button
-                onClick={onChatOpen}
                 className="p-2 rounded-lg bg-[#21262d] border border-[#30363d] text-gray-400 hover:text-gray-200 hover:border-gray-500 transition"
-                title="AI Assistant"
               >
-                💬
               </button>
 
               {user && (
