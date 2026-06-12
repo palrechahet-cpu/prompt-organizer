@@ -124,6 +124,9 @@ function App() {
   const [userPrompts, setUserPrompts] = useState([])
   const [favorites, setFavorites] = useState({})
   const [usageStats, setUsageStats] = useState({})
+  const [recentlyViewed, setRecentlyViewed] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('recentlyViewed') || '[]') } catch { return [] }
+  })
   const [collections, setCollections] = useState([])
   const [userCategories, setUserCategories] = useState([])
   const [activeCollection, setActiveCollection] = useState(null)
@@ -248,6 +251,16 @@ function App() {
     await setDoc(ref, { [String(promptId)]: current + 1 }, { merge: true })
   }
 
+  const trackRecentlyViewed = (promptId) => {
+    if (!promptId) return
+    setRecentlyViewed(prev => {
+      const filtered = prev.filter(id => String(id) !== String(promptId))
+      const updated = [String(promptId), ...filtered].slice(0, 5)
+      localStorage.setItem('recentlyViewed', JSON.stringify(updated))
+      return updated
+    })
+  }
+
   const handleThemeChange = async (theme) => {
     setCurrentTheme(theme)
     applyTheme(theme)
@@ -358,6 +371,7 @@ function App() {
     navigator.clipboard.writeText(text)
     showToast('Prompt copied!')
     if (promptId) trackUsage(promptId)
+    if (promptId) trackRecentlyViewed(promptId)
   }
 
   const deleteAccount = async () => {
@@ -460,6 +474,7 @@ function App() {
             <SmartSection
               usageStats={usageStats}
               allPrompts={allPrompts}
+              recentlyViewed={recentlyViewed}
               onCopy={(text, id) => copyPrompt(text, id)}
               onFavorite={toggleFavorite}
               onDelete={deletePrompt}
