@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import RemixModal from './RemixModal'
 
 function SendToAIModal({ prompt, onClose }) {
@@ -72,6 +72,44 @@ function SendToAIModal({ prompt, onClose }) {
   )
 }
 
+function HoverPreview({ prompt, accent, visible, position }) {
+  if (!visible) return null
+  return (
+    <div
+      className="fixed z-[100] w-80 bg-white dark:bg-[#161616] border border-gray-200 dark:border-white/10 rounded-2xl shadow-2xl p-4 flex flex-col gap-3 pointer-events-none"
+      style={{
+        top: position.y,
+        left: position.x,
+        boxShadow: `0 25px 50px -12px rgba(0,0,0,0.4), 0 0 0 1px color-mix(in srgb, var(--color-primary) 15%, transparent)`
+      }}
+    >
+      {/* Header */}
+      <div className="flex items-start gap-2">
+        <div className={`w-1 h-full min-h-[40px] rounded-full ${accent.cls} flex-shrink-0 opacity-80`} />
+        <div>
+          <p className="font-semibold text-gray-900 dark:text-white text-sm leading-snug">{prompt.title}</p>
+          <div className="flex items-center gap-1.5 mt-0.5">
+            <span className="text-xs" style={{ color: 'var(--color-primary)' }}>{prompt.category}</span>
+            {prompt.tags?.slice(0, 2).map(tag => (
+              <span key={tag} className="text-xs text-gray-400 dark:text-gray-600">#{tag}</span>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Full prompt text */}
+      <div className="bg-gray-50 dark:bg-white/4 rounded-xl p-3 border border-gray-100 dark:border-white/6 max-h-48 overflow-y-auto">
+        <p className="text-xs text-gray-600 dark:text-gray-400 leading-relaxed whitespace-pre-wrap">{prompt.prompt}</p>
+      </div>
+
+      {/* Footer hint */}
+      <p className="text-xs text-gray-400 dark:text-gray-600 text-center">
+        Click to expand · Copy to use
+      </p>
+    </div>
+  )
+}
+
 const ACCENT_COLORS = {
   blue:    { cls: 'bg-blue-500',    hex: '#3b82f6' },
   purple:  { cls: 'bg-purple-500',  hex: '#8b5cf6' },
@@ -104,6 +142,10 @@ export default function PromptCard({ prompt, onFavorite, onCopy, onDelete, onSha
   const [showRemixModal, setShowRemixModal] = useState(false)
   const [expanded, setExpanded] = useState(false)
   const [copied, setCopied] = useState(false)
+  const [showPreview, setShowPreview] = useState(false)
+  const [previewPos, setPreviewPos] = useState({ x: 0, y: 0 })
+  const hoverTimer = useRef(null)
+  const cardRef = useRef(null)
 
   const config = CATEGORY_CONFIG[prompt.category] || { color: 'gray', emoji: '📌' }
   const accent = ACCENT_COLORS[config.color] || ACCENT_COLORS.gray
@@ -115,13 +157,58 @@ export default function PromptCard({ prompt, onFavorite, onCopy, onDelete, onSha
     setTimeout(() => setCopied(false), 2000)
   }
 
+  const handleMouseEnter = (e) => {
+    if (expanded) return
+    hoverTimer.current = setTimeout(() => {
+      const rect = cardRef.current?.getBoundingClientRect()
+      if (!rect) return
+      const viewportWidth = window.innerWidth
+      const viewportHeight = window.innerHeight
+      const previewWidth = 320
+      const previewHeight = 280
+
+      let x = rect.right + 12
+      let y = rect.top
+
+      // Flip left if not enough space on right
+      if (x + previewWidth > viewportWidth - 16) {
+        x = rect.left - previewWidth - 12
+      }
+
+      // Flip up if not enough space below
+      if (y + previewHeight > viewportHeight - 16) {
+        y = viewportHeight - previewHeight - 16
+      }
+
+      // Keep on screen
+      x = Math.max(16, x)
+      y = Math.max(16, y)
+
+      setPreviewPos({ x, y })
+      setShowPreview(true)
+    }, 600)
+  }
+
+  const handleMouseLeave = () => {
+    clearTimeout(hoverTimer.current)
+    setShowPreview(false)
+  }
+
+  useEffect(() => {
+    return () => clearTimeout(hoverTimer.current)
+  }, [])
+
   return (
     <>
       {showAIModal && <SendToAIModal prompt={prompt} onClose={() => setShowAIModal(false)} />}
       {showRemixModal && <RemixModal prompt={prompt} onClose={() => setShowRemixModal(false)} />}
+      <HoverPreview prompt={prompt} accent={accent} visible={showPreview} position={previewPos} />
 
       <div
+        ref={cardRef}
         onClick={() => setExpanded(!expanded)}
+        onMouseEnter={handleMouseEnter}
+        onMouseLeave={handleMouseLeave}
         className={`group relative bg-white dark:bg-[#111] rounded-2xl border transition-all duration-300 cursor-pointer overflow-hidden flex flex-col
           ${expanded
             ? 'shadow-xl'
@@ -132,10 +219,8 @@ export default function PromptCard({ prompt, onFavorite, onCopy, onDelete, onSha
           boxShadow: `0 20px 40px -12px color-mix(in srgb, var(--color-primary) 15%, transparent)`
         } : {}}
       >
-        {/* Left accent bar — per category color */}
-        <div
-          className={`absolute left-0 top-0 bottom-0 w-[3px] ${accent.cls} transition-opacity duration-200 ${expanded ? 'opacity-100' : 'opacity-60 group-hover:opacity-80'}`}
-        />
+        {/* Left accent bar */}
+        <div className={`absolute left-0 top-0 bottom-0 w-[3px] ${accent.cls} transition-opacity duration-200 ${expanded ? 'opacity-100' : 'opacity-60 group-hover:opacity-80'}`} />
 
         <div className="pl-5 pr-4 pt-4 pb-4 flex flex-col gap-3">
 
@@ -187,8 +272,6 @@ export default function PromptCard({ prompt, onFavorite, onCopy, onDelete, onSha
 
           {/* Action buttons */}
           <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
-
-            {/* Copy */}
             <button
               onClick={handleCopy}
               className={`flex-1 py-1.5 rounded-lg text-xs font-medium transition-all duration-150 active:scale-95 ${
@@ -199,8 +282,6 @@ export default function PromptCard({ prompt, onFavorite, onCopy, onDelete, onSha
             >
               {copied ? '✓ Copied' : 'Copy'}
             </button>
-
-            {/* Send to AI */}
             <button
               onClick={(e) => { e.stopPropagation(); setShowAIModal(true) }}
               className="flex-1 py-1.5 text-white rounded-lg text-xs font-medium transition-all duration-150 active:scale-95"
@@ -208,28 +289,21 @@ export default function PromptCard({ prompt, onFavorite, onCopy, onDelete, onSha
             >
               🚀 Send
             </button>
-
-            {/* Remix */}
             <button
               onClick={(e) => { e.stopPropagation(); setShowRemixModal(true) }}
               className="flex-1 py-1.5 bg-violet-500 hover:bg-violet-600 text-white rounded-lg text-xs font-medium transition-all duration-150 active:scale-95"
             >
               🔀 Remix
             </button>
-
-            {/* Collection */}
             <button
               onClick={(e) => { e.stopPropagation(); onAddToCollection() }}
               title="Add to collection"
               className="w-7 h-7 flex items-center justify-center rounded-lg bg-gray-50 dark:bg-white/5 text-gray-300 dark:text-gray-600 border border-gray-100 dark:border-white/6 transition-all duration-150 active:scale-95 text-xs hover:text-white"
-              style={{ '--hover-bg': 'var(--color-primary)' }}
               onMouseEnter={e => e.currentTarget.style.backgroundColor = 'var(--color-primary)'}
               onMouseLeave={e => e.currentTarget.style.backgroundColor = ''}
             >
               📁
             </button>
-
-            {/* Delete */}
             {!prompt.builtIn && (
               <button
                 onClick={(e) => { e.stopPropagation(); onDelete() }}
