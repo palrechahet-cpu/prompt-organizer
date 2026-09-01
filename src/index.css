@@ -109,3 +109,36 @@ button, input, select, textarea {
 ::selection {
   background: rgba(249, 115, 22, 0.22);
 }
+
+/* Skip link visible when focused */
+.skip-link {
+  position: absolute;
+  left: -999px;
+  top: auto;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  z-index: 1000;
+}
+.skip-link:focus {
+  left: 12px;
+  top: 12px;
+  width: auto;
+  height: auto;
+  padding: 8px 12px;
+  background: #111;
+  color: #fff;
+  border-radius: 6px;
+  text-decoration: none;
+}
+
+/* Global focus-visible styles for keyboard users */
+:focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--color-primary) 60%, white 0%);
+  outline-offset: 2px;
+}
+
+/* Improve contrast for smaller gray text on dark backgrounds */
+.dark .text-gray-400, .dark p, .dark .text-xs, .dark .text-sm {
+  color: #cbd5e1 !important;
+}
