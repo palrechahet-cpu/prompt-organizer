@@ -1,6 +1,6 @@
 import { useState } from 'react'
 
-export default function CollectionsSidebar({ collections, activeCollection, onSelectCollection, onAddCollection, onDeleteCollection, prompts }) {
+export default function CollectionsSidebar({ collections, activeCollection, onSelectCollection, onAddCollection, onDeleteCollection, onShareCollection, prompts }) {
   const [newName, setNewName] = useState('')
   const [newEmoji, setNewEmoji] = useState('📁')
   const [adding, setAdding] = useState(false)
@@ -60,10 +60,17 @@ export default function CollectionsSidebar({ collections, activeCollection, onSe
               <span className="flex-1 text-left truncate">{col.name}</span>
               <span className="text-xs opacity-60">{getCount(col)}</span>
             </button>
-            <button
-              onClick={() => onDeleteCollection(col.id)}
-              className="absolute right-2 top-1/2 -translate-y-1/2 w-5 h-5 bg-red-500 text-white rounded-full text-xs hidden group-hover/col:flex items-center justify-center"
-            >×</button>
+            <div className="absolute right-2 top-1/2 -translate-y-1/2 flex gap-1 items-center hidden group-hover/col:flex">
+              <button
+                onClick={(e) => { e.stopPropagation(); onShareCollection && onShareCollection(col) }}
+                title="Share"
+                className="w-6 h-6 flex items-center justify-center rounded-full bg-gray-50 dark:bg-zinc-800 text-gray-400 hover:text-white text-xs"
+              >🔗</button>
+              <button
+                onClick={() => onDeleteCollection(col.id)}
+                className="w-5 h-5 bg-red-500 text-white rounded-full text-xs flex items-center justify-center"
+              >×</button>
+            </div>
           </div>
         ))}
 

@@ -146,3 +146,9 @@ Found a bug or have a suggestion? Feel free to open an issue or submit a pull re
 - Added six new research-focused built-in prompts to `src/data/prompts.js` (ids 71–76): Research Design & Proposal Viability Audit; Research Question Refinement; Content & Argument Evaluation; Literature Synthesis Quality Audit; Citation & Claim Verification; Academic Writing Quality Evaluation.
 
 If you want these changes reverted or adjusted (e.g., add expiration, creator controls), tell me which behavior you'd like.
+
+## Shared Collections
+
+- Users can now create persistent shareable links for their Collections. Shared collections are stored in Firestore under `sharedCollections` and include the collection metadata and embedded prompt data.
+- Only signed-in users can create shared collections; imports also require signing in with Google so the collection and prompts are saved under the user's account.
+- Shared collections are accessible via short links at `/c/:id` and can be imported into another user's library with a single click.

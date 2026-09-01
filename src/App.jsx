@@ -92,6 +92,59 @@ function ShareModal({ prompt, onClose }) {
   )
 }
 
+function ShareCollectionModal({ collection, prompts, user, onClose }) {
+  const [copied, setCopied] = useState(false)
+  const [creating, setCreating] = useState(false)
+  const [shareUrl, setShareUrl] = useState('')
+
+  const createSharedCollection = async () => {
+    setCreating(true)
+    try {
+      const payload = {
+        name: collection.name,
+        emoji: collection.emoji,
+        ownerId: user ? user.uid : null,
+        prompts: prompts.filter(p => p.collections?.includes(collection.id)).map(p => ({ title: p.title, prompt: p.prompt, category: p.category, tags: p.tags || [] })),
+        createdAt: Date.now()
+      }
+      const ref = await addDoc(collection(db, 'sharedCollections'), payload)
+      const url = new URL(window.location.href)
+      url.search = ''
+      url.pathname = `/c/${ref.id}`
+      const link = url.toString()
+      setShareUrl(link)
+      await navigator.clipboard.writeText(link)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    } catch (err) {
+      console.error('createSharedCollection error', err)
+    }
+    setCreating(false)
+  }
+
+  const handleBackdrop = (e) => { if (e.target === e.currentTarget) onClose() }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm px-4" onClick={handleBackdrop}>
+      <div className="bg-white dark:bg-zinc-900 border border-gray-100 dark:border-zinc-800 rounded-2xl shadow-2xl w-full max-w-md p-6 flex flex-col gap-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2"><span className="text-xl">🔗</span><h2 className="font-bold text-gray-900 dark:text-white text-lg">Share Collection</h2></div>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 text-xl leading-none transition-colors">✕</button>
+        </div>
+        <div className="bg-gray-50 dark:bg-zinc-800 rounded-xl p-4 border border-gray-100 dark:border-zinc-700">
+          <p className="font-semibold text-gray-800 dark:text-white text-sm mb-1">{collection.name}</p>
+          <p className="text-gray-400 dark:text-gray-500 text-xs">Includes {prompts.filter(p => p.collections?.includes(collection.id)).length} prompts</p>
+        </div>
+        <div className="flex gap-2 items-center">
+          <input readOnly value={shareUrl} placeholder="Create a persistent link" className="flex-1 text-xs bg-gray-50 dark:bg-zinc-800 border border-gray-200 dark:border-zinc-700 rounded-xl px-3 py-2.5 text-gray-500 dark:text-gray-400 truncate focus:outline-none" />
+          <button onClick={createSharedCollection} disabled={creating} className={`flex-shrink-0 px-4 py-2.5 rounded-xl text-xs font-semibold transition-all duration-200 active:scale-95 ${copied ? 'bg-green-500 text-white' : 'text-white shadow-sm'}`} style={{ backgroundColor: copied ? undefined : 'var(--color-primary)' }}>{copied ? '✓ Copied!' : (creating ? 'Creating...' : 'Create Link')}</button>
+        </div>
+        <p className="text-xs text-gray-400 dark:text-gray-600 text-center">Short permanent link stored in the app — anyone can view and import this collection.</p>
+      </div>
+    </div>
+  )
+}
+
 function SharedPromptModal({ prompt, onImport, onClose }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm px-4">
@@ -171,6 +224,8 @@ function App() {
   const [toast, setToast] = useState(null)
   const [sharePrompt, setSharePrompt] = useState(null)
   const [incomingSharedPrompt, setIncomingSharedPrompt] = useState(null)
+  const [shareCollection, setShareCollection] = useState(null)
+  const [incomingSharedCollection, setIncomingSharedCollection] = useState(null)
   const [collectionModalPrompt, setCollectionModalPrompt] = useState(null)
   const [showAddCategory, setShowAddCategory] = useState(false)
 
@@ -278,6 +333,27 @@ function App() {
       }
     }
     tryLoadShared()
+  }, [])
+
+  // Check for persistent shared collection via path /c/:id
+  useEffect(() => {
+    const tryLoadSharedCollection = async () => {
+      try {
+        const path = window.location.pathname || ''
+        const m = path.match(/^\/c\/([^/]+)/)
+        if (!m) return
+        const id = m[1]
+        const snap = await getDoc(doc(db, 'sharedCollections', id))
+        if (snap.exists()) {
+          setIncomingSharedCollection({ id: snap.id, ...snap.data() })
+        } else {
+          showToast('Shared collection not found')
+        }
+      } catch (err) {
+        console.error('Error loading shared collection', err)
+      }
+    }
+    tryLoadSharedCollection()
   }, [])
 
   // Sync darkMode
@@ -454,6 +530,37 @@ function App() {
     window.history.replaceState({}, '', url.toString())
   }
 
+  const importSharedCollection = async (shared) => {
+    if (!shared) return
+    if (!user) { showToast('Sign in to import this collection'); return }
+    try {
+      // create collection in user's collections
+      const ref = doc(collection(db, 'users', user.uid, 'collections'))
+      await setDoc(ref, { name: shared.name, emoji: shared.emoji, createdAt: Date.now() })
+      const newCollectionId = ref.id
+      // add prompts to user's library and attach to new collection
+      await Promise.all((shared.prompts || []).map(async (p, i) => {
+        const pref = doc(collection(db, 'users', user.uid, 'prompts'))
+        await setDoc(pref, { ...p, favorite: false, builtIn: false, collections: [newCollectionId], createdAt: Date.now() + i })
+      }))
+      showToast('Collection imported!')
+      setIncomingSharedCollection(null)
+      const url = new URL(window.location.href)
+      url.pathname = '/'
+      window.history.replaceState({}, '', url.toString())
+    } catch (err) {
+      console.error('importSharedCollection error', err)
+      showToast('Import failed')
+    }
+  }
+
+  const dismissSharedCollection = () => {
+    setIncomingSharedCollection(null)
+    const url = new URL(window.location.href)
+    url.searchParams.delete('share')
+    window.history.replaceState({}, '', url.toString())
+  }
+
   const dismissSharedPrompt = () => {
     setIncomingSharedPrompt(null)
     const url = new URL(window.location.href)
@@ -512,6 +619,7 @@ function App() {
             onSelectCollection={setActiveCollection}
             onAddCollection={addCollection}
             onDeleteCollection={deleteCollection}
+            onShareCollection={(col) => { if (!user) { showToast('Sign in to share collections'); return } setShareCollection(col) }}
             prompts={userPrompts}
           />
           <main className="flex-1 min-w-0">
@@ -574,7 +682,9 @@ function App() {
         <Footer />
         {toast && <Toast message={toast} onClose={() => setToast(null)} />}
         {sharePrompt && <ShareModal prompt={sharePrompt} onClose={() => setSharePrompt(null)} />}
+        {shareCollection && <ShareCollectionModal collection={shareCollection} prompts={allPrompts} user={user} onClose={() => setShareCollection(null)} />}
         {incomingSharedPrompt && <SharedPromptModal prompt={incomingSharedPrompt} onImport={importSharedPrompt} onClose={dismissSharedPrompt} />}
+        {incomingSharedCollection && <SharedPromptModal prompt={{ title: incomingSharedCollection.name, prompt: `${incomingSharedCollection.prompts.map(p => p.title).join('\n')}`, category: 'Collection', tags: [] }} onImport={() => importSharedCollection(incomingSharedCollection)} onClose={dismissSharedCollection} />}
         {collectionModalPrompt && (
           <AddToCollectionModal
             prompt={collectionModalPrompt}
