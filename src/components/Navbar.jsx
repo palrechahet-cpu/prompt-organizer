@@ -28,6 +28,26 @@ export default function Navbar({ search, setSearch, darkMode, setDarkMode, showF
     setDeleting(false)
   }
 
+  const renderAvatar = () => {
+    const name = user?.displayName || ''
+    const initials = name.split(' ').map(n => n[0]).filter(Boolean).slice(0,2).join('').toUpperCase() || 'U'
+    if (user?.photoURL) {
+      return (
+        <img
+          src={user.photoURL}
+          alt={`${user.displayName || 'User'} avatar`}
+          className="w-7 h-7 rounded-full border-2"
+          style={{ borderColor: 'var(--color-primary)' }}
+        />
+      )
+    }
+    return (
+      <div className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-semibold text-white" style={{ backgroundColor: 'var(--color-primary)', border: '2px solid var(--color-primary)' }} aria-hidden>
+        {initials}
+      </div>
+    )
+  }
+
   return (
     <>
       {showThemePanel && (
@@ -63,7 +83,7 @@ export default function Navbar({ search, setSearch, darkMode, setDarkMode, showF
                 value={deleteInput}
                 onChange={e => setDeleteInput(e.target.value)}
                 placeholder="DELETE"
-                className="w-full px-4 py-3 rounded-xl border border-gray-200 dark:border-white/8 bg-gray-50 dark:bg-white/4 text-gray-900 dark:text-gray-100 text-sm focus:outline-none focus:ring-2 focus:ring-red-500 transition"
+                className="w-full px-4 py-3 rounded-xl border border-gray-200 dark:border-white/8 bg-gray-50 dark:bg-white/4 text-gray-900 dark:text-gray-100 text-sm focus:outline-none focus:ring-[...]
               />
             </div>
             <div className="flex gap-2">
@@ -104,7 +124,7 @@ export default function Navbar({ search, setSearch, darkMode, setDarkMode, showF
               value={search}
               onChange={e => setSearch(e.target.value)}
               placeholder="Search prompts..."
-              className="hidden sm:flex flex-1 max-w-md px-4 py-2 rounded-lg border border-[#30363d] bg-[#0f1117] text-gray-200 placeholder-gray-500 text-sm focus:outline-none focus:ring-2 transition"
+              className="hidden sm:flex flex-1 max-w-md px-4 py-2 rounded-lg border border-[#30363d] bg-[#0f1117] text-gray-200 placeholder-gray-500 text-sm focus:outline-none focus:ring-2 transi[...]
               style={{ '--tw-ring-color': 'var(--color-primary)' }}
             />
 
@@ -153,13 +173,9 @@ export default function Navbar({ search, setSearch, darkMode, setDarkMode, showF
                   <button
                     onClick={() => setShowProfileMenu(!showProfileMenu)}
                     className="flex items-center gap-2 pl-1 pr-2 py-1 rounded-xl bg-[#21262d] border border-[#30363d] hover:border-gray-500 transition"
+                    aria-label="User menu"
                   >
-                    <img
-                      src={user.photoURL}
-                      alt={user.displayName}
-                      className="w-7 h-7 rounded-full border-2"
-                      style={{ borderColor: 'var(--color-primary)' }}
-                    />
+                    {renderAvatar()}
                     <span className="hidden sm:block text-xs text-gray-300 max-w-[80px] truncate">{user.displayName?.split(' ')[0]}</span>
                     <svg width="10" height="10" viewBox="0 0 10 10" fill="none" className={`text-gray-500 transition-transform ${showProfileMenu ? 'rotate-180' : ''}`}>
                       <path d="M2 3.5L5 6.5L8 3.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
