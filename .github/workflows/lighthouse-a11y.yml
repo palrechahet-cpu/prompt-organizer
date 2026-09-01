@@ -1,0 +1,41 @@
+name: Lighthouse Accessibility Audit
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+  workflow_dispatch:
+
+jobs:
+  lighthouse:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+
+      - name: Install
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      - name: Serve dist
+        run: npx http-server ./dist -p 8080 &
+
+      - name: Run Lighthouse (accessibility)
+        run: |
+          npx -y lighthouse "http://127.0.0.1:8080/prompt-organizer/" \
+            --preset=desktop \
+            --only-categories=accessibility \
+            --output=json --output-path=lh-accessibility.json \
+            --chrome-flags="--no-sandbox"
+
+      - name: Upload report
+        uses: actions/upload-artifact@v4
+        with:
+          name: lighthouse-accessibility
+          path: lh-accessibility.json
