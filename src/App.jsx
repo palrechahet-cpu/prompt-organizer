@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { onAuthStateChanged, signOut } from 'firebase/auth'
-import { collection, doc, setDoc, deleteDoc, onSnapshot, getDocs } from 'firebase/firestore'
+import { collection, doc, setDoc, deleteDoc, onSnapshot, getDocs, addDoc, getDoc } from 'firebase/firestore'
 import { auth, db } from './firebase'
 import Navbar from './components/Navbar'
 import HeroSection from './components/HeroSection'
@@ -33,15 +33,44 @@ function applyTheme(theme) {
 
 function ShareModal({ prompt, onClose }) {
   const [copied, setCopied] = useState(false)
-  const shareUrl = (() => {
-    const encoded = btoa(encodeURIComponent(JSON.stringify({ title: prompt.title, category: prompt.category, prompt: prompt.prompt, tags: prompt.tags })))
-    const url = new URL(window.location.href)
-    url.search = ''
-    url.searchParams.set('share', encoded)
-    return url.toString()
-  })()
-  const copyLink = () => { navigator.clipboard.writeText(shareUrl); setCopied(true); setTimeout(() => setCopied(false), 2000) }
+  const [creating, setCreating] = useState(false)
+  const [shareUrl, setShareUrl] = useState('')
+
   const handleBackdrop = (e) => { if (e.target === e.currentTarget) onClose() }
+
+  const createSharedLink = async () => {
+    setCreating(true)
+    try {
+      const payload = { title: prompt.title, category: prompt.category, prompt: prompt.prompt, tags: prompt.tags || [], createdAt: Date.now() }
+      // create doc in sharedPrompts collection
+      const ref = await addDoc(collection(db, 'sharedPrompts'), payload)
+      const url = new URL(window.location.href)
+      url.search = ''
+      url.pathname = `/s/${ref.id}`
+      const link = url.toString()
+      setShareUrl(link)
+      await navigator.clipboard.writeText(link)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    } catch (err) {
+      // fallback to encoded link in case of failure
+      try {
+        const encoded = btoa(encodeURIComponent(JSON.stringify({ title: prompt.title, category: prompt.category, prompt: prompt.prompt, tags: prompt.tags })))
+        const url = new URL(window.location.href)
+        url.search = ''
+        url.searchParams.set('share', encoded)
+        const link = url.toString()
+        setShareUrl(link)
+        await navigator.clipboard.writeText(link)
+        setCopied(true)
+        setTimeout(() => setCopied(false), 2000)
+      } catch (e) {
+        console.error('Share link error', e)
+      }
+    }
+    setCreating(false)
+  }
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm px-4" onClick={handleBackdrop}>
       <div className="bg-white dark:bg-zinc-900 border border-gray-100 dark:border-zinc-800 rounded-2xl shadow-2xl w-full max-w-md p-6 flex flex-col gap-4">
@@ -54,10 +83,10 @@ function ShareModal({ prompt, onClose }) {
           <p className="text-gray-400 dark:text-gray-500 text-xs line-clamp-2">{prompt.prompt}</p>
         </div>
         <div className="flex gap-2 items-center">
-          <input readOnly value={shareUrl} className="flex-1 text-xs bg-gray-50 dark:bg-zinc-800 border border-gray-200 dark:border-zinc-700 rounded-xl px-3 py-2.5 text-gray-500 dark:text-gray-400 truncate focus:outline-none" />
-          <button onClick={copyLink} className={`flex-shrink-0 px-4 py-2.5 rounded-xl text-xs font-semibold transition-all duration-200 active:scale-95 ${copied ? 'bg-green-500 text-white' : 'text-white shadow-sm'}`} style={{ backgroundColor: copied ? undefined : 'var(--color-primary)' }}>{copied ? '✓ Copied!' : 'Copy Link'}</button>
+          <input readOnly value={shareUrl} placeholder="Create a persistent link" className="flex-1 text-xs bg-gray-50 dark:bg-zinc-800 border border-gray-200 dark:border-zinc-700 rounded-xl px-3 py-2.5 text-gray-500 dark:text-gray-400 truncate focus:outline-none" />
+          <button onClick={createSharedLink} disabled={creating} className={`flex-shrink-0 px-4 py-2.5 rounded-xl text-xs font-semibold transition-all duration-200 active:scale-95 ${copied ? 'bg-green-500 text-white' : 'text-white shadow-sm'}`} style={{ backgroundColor: copied ? undefined : 'var(--color-primary)' }}>{copied ? '✓ Copied!' : (creating ? 'Creating...' : 'Create Link')}</button>
         </div>
-        <p className="text-xs text-gray-400 dark:text-gray-600 text-center">Anyone with this link can view and import this prompt.</p>
+        <p className="text-xs text-gray-400 dark:text-gray-600 text-center">Short permanent link stored in the app — anyone can view and import.</p>
       </div>
     </div>
   )
@@ -228,6 +257,27 @@ function App() {
     const params = new URLSearchParams(window.location.search)
     const shared = params.get('share')
     if (shared) { try { const decoded = JSON.parse(decodeURIComponent(atob(shared))); setIncomingSharedPrompt(decoded) } catch { } }
+  }, [])
+
+  // Check for persistent shared prompt via path /s/:id
+  useEffect(() => {
+    const tryLoadShared = async () => {
+      try {
+        const path = window.location.pathname || ''
+        const m = path.match(/^\/s\/([^/]+)/)
+        if (!m) return
+        const id = m[1]
+        const snap = await getDoc(doc(db, 'sharedPrompts', id))
+        if (snap.exists()) {
+          setIncomingSharedPrompt(snap.data())
+        } else {
+          showToast('Shared prompt not found')
+        }
+      } catch (err) {
+        console.error('Error loading shared prompt', err)
+      }
+    }
+    tryLoadShared()
   }, [])
 
   // Sync darkMode

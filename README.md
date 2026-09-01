@@ -138,3 +138,11 @@ Found a bug or have a suggestion? Feel free to open an issue or submit a pull re
 ---
 
 **Built with ❤️ for prompt enthusiasts and AI users**
+
+## Changelog (recent)
+
+- Added persistent public sharing: stored shared prompts in Firestore under `sharedPrompts` and a short link route `/s/:id` for permanent share links. Implemented in `src/App.jsx`.
+- Added a Share button on prompt cards (`src/components/PromptCard.jsx`) to open the share modal.
+- Added six new research-focused built-in prompts to `src/data/prompts.js` (ids 71–76): Research Design & Proposal Viability Audit; Research Question Refinement; Content & Argument Evaluation; Literature Synthesis Quality Audit; Citation & Claim Verification; Academic Writing Quality Evaluation.
+
+If you want these changes reverted or adjusted (e.g., add expiration, creator controls), tell me which behavior you'd like.

@@ -296,6 +296,13 @@ export default function PromptCard({ prompt, onFavorite, onCopy, onDelete, onSha
               🔀 Remix
             </button>
             <button
+              onClick={(e) => { e.stopPropagation(); onShare && onShare(prompt) }}
+              title="Share"
+              className="w-7 h-7 flex items-center justify-center rounded-lg bg-gray-50 dark:bg-white/5 text-gray-300 dark:text-white/20 border border-gray-100 dark:border-white/6 transition-all duration-150 active:scale-95 text-xs hover:text-white"
+            >
+              🔗
+            </button>
+            <button
               onClick={(e) => { e.stopPropagation(); onAddToCollection() }}
               title="Add to collection"
               className="w-7 h-7 flex items-center justify-center rounded-lg bg-gray-50 dark:bg-white/5 text-gray-300 dark:text-gray-600 border border-gray-100 dark:border-white/6 transition-all duration-150 active:scale-95 text-xs hover:text-white"
