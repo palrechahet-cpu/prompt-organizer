@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import ThemePanel from './ThemePanel'
 
-export default function Navbar({ search, setSearch, darkMode, setDarkMode, showFavoritesOnly, setShowFavoritesOnly, user, onSignOut, currentTheme, onThemeChange, onDeleteAccount }) {
+export default function Navbar({ search, setSearch, darkMode, setDarkMode, showFavoritesOnly, setShowFavoritesOnly, user, onSignOut, currentTheme, onThemeChange, onDeleteAccount, onOpenTrash }) {
   const [mobileSearchOpen, setMobileSearchOpen] = useState(false)
   const [showThemePanel, setShowThemePanel] = useState(false)
   const [showProfileMenu, setShowProfileMenu] = useState(false)
@@ -179,6 +179,13 @@ export default function Navbar({ search, setSearch, darkMode, setDarkMode, showF
                       >
                         <span>🚪</span>
                         Sign out
+                      </button>
+                      <button
+                        onClick={() => { onOpenTrash && onOpenTrash(); setShowProfileMenu(false) }}
+                        className="w-full flex items-center gap-2 px-3 py-2.5 text-sm text-gray-400 hover:text-white hover:bg-[#21262d] transition text-left"
+                      >
+                        <span>🗑️</span>
+                        Trash
                       </button>
                       <button
                         onClick={() => { setShowDeleteConfirm(true); setShowProfileMenu(false) }}

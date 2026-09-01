@@ -170,6 +170,40 @@ function SharedPromptModal({ prompt, onImport, onClose }) {
   )
 }
 
+function TrashModal({ deletedPrompts, onRestore, onPurge, onClose }) {
+  const handleBackdrop = (e) => { if (e.target === e.currentTarget) onClose() }
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm px-4" onClick={handleBackdrop}>
+      <div className="bg-white dark:bg-zinc-900 border border-gray-100 dark:border-zinc-800 rounded-2xl shadow-2xl w-full max-w-2xl p-6 flex flex-col gap-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2"><span className="text-2xl">🗑️</span><h2 className="font-bold text-gray-900 dark:text-white text-lg">Trash</h2></div>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 text-xl leading-none transition-colors">✕</button>
+        </div>
+        <p className="text-sm text-gray-500 dark:text-gray-400">Items in Trash are recoverable for 7 days before permanent deletion.</p>
+        <div className="max-h-80 overflow-y-auto">
+          {deletedPrompts.length === 0 ? (
+            <p className="text-gray-400 text-sm">No items in Trash</p>
+          ) : (
+            deletedPrompts.map(p => (
+              <div key={p.id} className="flex items-start justify-between gap-4 p-3 rounded-lg border border-gray-100 dark:border-zinc-700 mb-2">
+                <div>
+                  <p className="font-semibold text-gray-800 dark:text-white text-sm">{p.title}</p>
+                  <p className="text-xs text-gray-400 line-clamp-2">{p.prompt}</p>
+                  <p className="text-xs text-gray-400 mt-1">Deleted {p.deletedAt ? new Date(p.deletedAt).toLocaleString() : ''}</p>
+                </div>
+                <div className="flex gap-2">
+                  <button onClick={() => onRestore(p.id)} className="py-1.5 px-3 bg-green-500 text-white rounded-lg text-xs">Restore</button>
+                  <button onClick={() => onPurge(p.id)} className="py-1.5 px-3 bg-red-500 text-white rounded-lg text-xs">Delete</button>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function AddCategoryModal({ onAdd, onClose }) {
   const [name, setName] = useState('')
   const handleBackdrop = (e) => { if (e.target === e.currentTarget) onClose() }
@@ -228,6 +262,7 @@ function App() {
   const [incomingSharedCollection, setIncomingSharedCollection] = useState(null)
   const [collectionModalPrompt, setCollectionModalPrompt] = useState(null)
   const [showAddCategory, setShowAddCategory] = useState(false)
+  const [showTrash, setShowTrash] = useState(false)
 
   // Auth
   useEffect(() => {
@@ -245,6 +280,16 @@ function App() {
     const unsubscribe = onSnapshot(ref, (snapshot) => {
       const loaded = snapshot.docs.map(d => ({ ...d.data(), id: d.id }))
       setUserPrompts(loaded)
+      // Auto-purge prompts that have been in Trash > 7 days
+      const now = Date.now()
+      const sevenDays = 7 * 24 * 60 * 60 * 1000
+      snapshot.docs.forEach(d => {
+        const data = d.data()
+        if (data && data.deleted && data.deletedAt && (now - data.deletedAt) > sevenDays) {
+          // permanently delete
+          deleteDoc(doc(db, 'users', user.uid, 'prompts', d.id)).catch(err => console.error('Auto-purge error', err))
+        }
+      })
     })
     return () => unsubscribe()
   }, [user])
@@ -440,8 +485,25 @@ function App() {
   const deletePrompt = async (id) => {
     if (defaultPrompts.find(p => String(p.id) === String(id))) { showToast('Cannot delete built-in prompts'); return }
     if (!user) return
+    const userPrompt = userPrompts.find(p => p.id === id)
+    if (!userPrompt) return
+    // Soft-delete: mark as deleted with timestamp; allow restore within 7 days
+    await setDoc(doc(db, 'users', user.uid, 'prompts', id), { ...userPrompt, deleted: true, deletedAt: Date.now() })
+    showToast('Prompt moved to Trash. Restore within 7 days.')
+  }
+
+  const restorePrompt = async (id) => {
+    if (!user) return
+    const userPrompt = userPrompts.find(p => p.id === id)
+    if (!userPrompt) return
+    await setDoc(doc(db, 'users', user.uid, 'prompts', id), { ...userPrompt, deleted: false, deletedAt: null })
+    showToast('Prompt restored')
+  }
+
+  const purgePrompt = async (id) => {
+    if (!user) return
     await deleteDoc(doc(db, 'users', user.uid, 'prompts', id))
-    showToast('Prompt deleted!')
+    showToast('Prompt permanently deleted')
   }
 
   const addCollection = async ({ name, emoji }) => {
@@ -570,7 +632,7 @@ function App() {
 
   const allPrompts = [
     ...defaultPrompts.map(p => ({ ...p, favorite: !!favorites[String(p.id)] })),
-    ...userPrompts
+    ...userPrompts.filter(p => !p.deleted)
   ]
 
   const allCategories = ['All', ...new Set([...allPrompts.map(p => p.category), ...userCategories])]
@@ -611,6 +673,7 @@ function App() {
           currentTheme={currentTheme}
           onThemeChange={handleThemeChange}
           onDeleteAccount={deleteAccount}
+          onOpenTrash={() => setShowTrash(true)}
         />
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6 sm:py-10 flex gap-6">
           <CollectionsSidebar
@@ -620,7 +683,7 @@ function App() {
             onAddCollection={addCollection}
             onDeleteCollection={deleteCollection}
             onShareCollection={(col) => { if (!user) { showToast('Sign in to share collections'); return } setShareCollection(col) }}
-            prompts={userPrompts}
+            prompts={userPrompts.filter(p => !p.deleted)}
           />
           <main className="flex-1 min-w-0">
             {showTour && <OnboardingTour onFinish={() => { setShowTour(false); localStorage.setItem('tourDone', '1') }} />}
@@ -685,6 +748,7 @@ function App() {
         {shareCollection && <ShareCollectionModal collection={shareCollection} prompts={allPrompts} user={user} onClose={() => setShareCollection(null)} />}
         {incomingSharedPrompt && <SharedPromptModal prompt={incomingSharedPrompt} onImport={importSharedPrompt} onClose={dismissSharedPrompt} />}
         {incomingSharedCollection && <SharedPromptModal prompt={{ title: incomingSharedCollection.name, prompt: `${incomingSharedCollection.prompts.map(p => p.title).join('\n')}`, category: 'Collection', tags: [] }} onImport={() => importSharedCollection(incomingSharedCollection)} onClose={dismissSharedCollection} />}
+        {showTrash && <TrashModal deletedPrompts={userPrompts.filter(p => p.deleted)} onRestore={restorePrompt} onPurge={purgePrompt} onClose={() => setShowTrash(false)} />}
         {collectionModalPrompt && (
           <AddToCollectionModal
             prompt={collectionModalPrompt}
