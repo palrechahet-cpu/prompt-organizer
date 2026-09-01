@@ -1,4 +1,4 @@
-export const THEMES = {
+const THEMES = {
   orange: {
     name: 'Orange',
     primary: '#f97316',

@@ -1,4 +1,30 @@
 import { useState, useRef } from 'react'
+import useFocusTrap from '../hooks/useFocusTrap'
+
+function PlusIcon() {
+  return (
+    <svg viewBox="0 0 20 20" fill="none" className="h-4 w-4" aria-hidden="true">
+      <path d="M10 4V16M4 10H16" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+    </svg>
+  )
+}
+
+function DownloadIcon() {
+  return (
+    <svg viewBox="0 0 20 20" fill="none" className="h-4 w-4" aria-hidden="true">
+      <path d="M10 3.5V12M10 12L13 9M10 12L7 9" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M4.5 15.5H15.5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+    </svg>
+  )
+}
+
+function CloseIcon() {
+  return (
+    <svg viewBox="0 0 20 20" fill="none" className="h-4 w-4" aria-hidden="true">
+      <path d="M5 5L15 15M15 5L5 15" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+    </svg>
+  )
+}
 
 export default function AddPromptForm({ onAdd, onBulkAdd }) {
   const [open, setOpen] = useState(false)
@@ -7,9 +33,16 @@ export default function AddPromptForm({ onAdd, onBulkAdd }) {
   const [pasteText, setPasteText] = useState('')
   const [importError, setImportError] = useState('')
   const [importSuccess, setImportSuccess] = useState('')
+  const [previewItems, setPreviewItems] = useState([])
+  const [showPreview, setShowPreview] = useState(false)
   const [form, setForm] = useState({ title: '', category: 'Writing', prompt: '', tags: '' })
   const jsonFileRef = useRef()
   const csvFileRef = useRef()
+  const addModalRef = useRef(null)
+  const importModalRef = useRef(null)
+
+  useFocusTrap(addModalRef, () => setOpen(false))
+  useFocusTrap(importModalRef, () => setImportOpen(false))
 
   const categories = ['Research', 'Writing', 'AI', 'Productivity', 'Education', 'Creative', 'Health & Fitness', 'Tech & Coding', 'Social Media', 'Product & Strategy', 'Ideation & Brainstorm']
 
@@ -31,11 +64,11 @@ export default function AddPromptForm({ onAdd, onBulkAdd }) {
       tags: Array.isArray(p.tags) ? p.tags : (p.tags ? p.tags.split(',').map(t => t.trim()).filter(Boolean) : []),
       builtIn: false
     }))
-    onBulkAdd(formatted)
-    setImportSuccess(`✅ ${formatted.length} prompt${formatted.length > 1 ? 's' : ''} imported successfully!`)
+    // show preview so the user can confirm and exclude items before importing
+    setPreviewItems(formatted.map((p, i) => ({ ...p, __include: true, __idx: i })))
+    setShowPreview(true)
     setImportError('')
     setPasteText('')
-    setTimeout(() => { setImportOpen(false); setImportSuccess('') }, 2000)
   }
 
   const handleJSONFile = (e) => {
@@ -44,7 +77,7 @@ export default function AddPromptForm({ onAdd, onBulkAdd }) {
     const reader = new FileReader()
     reader.onload = (ev) => {
       try { const parsed = JSON.parse(ev.target.result); processPrompts(Array.isArray(parsed) ? parsed : [parsed]) }
-      catch { setImportError('Invalid JSON file.') }
+      catch (err) { console.error('Invalid JSON file import', err); setImportError('Invalid JSON file.') }
     }
     reader.readAsText(file)
   }
@@ -64,7 +97,7 @@ export default function AddPromptForm({ onAdd, onBulkAdd }) {
           return obj
         })
         processPrompts(items)
-      } catch { setImportError('Invalid CSV file.') }
+      } catch (err) { console.error('Invalid CSV import', err); setImportError('Invalid CSV file.') }
     }
     reader.readAsText(file)
   }
@@ -73,7 +106,7 @@ export default function AddPromptForm({ onAdd, onBulkAdd }) {
     setImportError('')
     const text = pasteText.trim()
     if (!text) { setImportError('Please paste some content first.'); return }
-    try { const parsed = JSON.parse(text); processPrompts(Array.isArray(parsed) ? parsed : [parsed]); return } catch {}
+    try { const parsed = JSON.parse(text); processPrompts(Array.isArray(parsed) ? parsed : [parsed]); return } catch (err) { console.debug('paste is not JSON', err) }
     try {
       const lines = text.split('\n').filter(Boolean)
       const headers = lines[0].split(',').map(h => h.trim().toLowerCase().replace(/"/g, ''))
@@ -86,11 +119,30 @@ export default function AddPromptForm({ onAdd, onBulkAdd }) {
         })
         processPrompts(items); return
       }
-    } catch {}
+    } catch (err) { console.debug('paste is not CSV', err) }
     setImportError('Could not parse content. Please use valid JSON or CSV format.')
   }
 
   const resetImport = () => { setImportError(''); setImportSuccess(''); setPasteText(''); setImportOpen(false) }
+
+  const togglePreviewInclude = (idx) => {
+    setPreviewItems(items => items.map(it => it.__idx === idx ? { ...it, __include: !it.__include } : it))
+  }
+
+  const confirmImport = async () => {
+    const toImport = previewItems.filter(p => p.__include).map(p => { const copy = { ...p }; delete copy.__include; delete copy.__idx; return copy })
+    if (toImport.length === 0) { setImportError('No prompts selected for import'); return }
+    try {
+      onBulkAdd(toImport)
+      setImportSuccess(`✅ ${toImport.length} prompt${toImport.length > 1 ? 's' : ''} imported successfully!`)
+      setPreviewItems([])
+      setShowPreview(false)
+      setTimeout(() => { setImportOpen(false); setImportSuccess('') }, 2000)
+    } catch (err) {
+      console.error('import confirm error', err)
+      setImportError('Import failed')
+    }
+  }
 
   const inputClass = "w-full px-4 py-3 rounded-xl border border-gray-200 dark:border-white/8 bg-gray-50 dark:bg-white/4 text-gray-900 dark:text-gray-100 placeholder-gray-400 text-sm focus:outline-none focus:ring-2 transition"
 
@@ -99,14 +151,16 @@ export default function AddPromptForm({ onAdd, onBulkAdd }) {
 
       {/* Import Modal */}
       {importOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm px-4">
+        <div ref={importModalRef} className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm px-4" role="dialog" aria-modal="true" aria-labelledby="import-modal-title" tabIndex={-1}>
           <div className="bg-white dark:bg-[#111] rounded-2xl border border-gray-100 dark:border-white/8 shadow-2xl w-full max-w-lg p-6 flex flex-col gap-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <span className="text-xl">📥</span>
-                <h2 className="font-bold text-gray-900 dark:text-white text-lg">Import Prompts</h2>
+                <h2 id="import-modal-title" className="font-bold text-gray-900 dark:text-white text-lg">Import Prompts</h2>
               </div>
-              <button onClick={resetImport} className="text-gray-400 hover:text-gray-600 text-xl transition-colors">✕</button>
+              <button onClick={resetImport} className="flex h-9 w-9 items-center justify-center rounded-lg border border-gray-200 bg-gray-50 text-gray-500 transition hover:border-orange-200 hover:text-orange-500 dark:border-white/8 dark:bg-white/4 dark:text-gray-400 dark:hover:text-orange-400">
+                <CloseIcon />
+              </button>
             </div>
 
             {/* Tabs */}
@@ -174,6 +228,31 @@ export default function AddPromptForm({ onAdd, onBulkAdd }) {
               </div>
             )}
 
+            {/* Preview UI */}
+            {showPreview && (
+              <div className="flex flex-col gap-3">
+                <p className="text-xs text-gray-500 dark:text-gray-400">Preview parsed prompts — uncheck any you don't want to import.</p>
+                <div className="max-h-64 overflow-y-auto space-y-2 p-2 bg-gray-50 dark:bg-white/4 rounded-lg border border-gray-100 dark:border-white/6">
+                  {previewItems.map((p, i) => (
+                    <label key={i} className="flex items-start gap-3 p-2 rounded-md hover:bg-white dark:hover:bg-white/6">
+                      <input type="checkbox" checked={p.__include} onChange={() => togglePreviewInclude(p.__idx)} className="mt-1" />
+                      <div className="flex-1">
+                        <div className="flex items-center justify-between">
+                          <p className="text-sm font-semibold text-gray-800 dark:text-white">{p.title}</p>
+                          <p className="text-xs text-gray-400">{p.category}</p>
+                        </div>
+                        <p className="text-xs text-gray-400 line-clamp-2 mt-1">{p.prompt}</p>
+                      </div>
+                    </label>
+                  ))}
+                </div>
+                <div className="flex gap-2">
+                  <button onClick={confirmImport} className="flex-1 py-3 text-white rounded-xl font-bold text-sm" style={{ backgroundColor: 'var(--color-primary)' }}>Confirm Import</button>
+                  <button onClick={() => setShowPreview(false)} className="flex-1 py-3 bg-gray-100 dark:bg-zinc-800 rounded-xl font-bold text-sm">Cancel</button>
+                </div>
+              </div>
+            )}
+
             {importError && <div className="flex items-center gap-2 bg-red-50 dark:bg-red-900/20 border border-red-100 dark:border-red-800/30 rounded-xl px-4 py-3"><span>❌</span><p className="text-xs text-red-600 dark:text-red-400">{importError}</p></div>}
             {importSuccess && <div className="flex items-center gap-2 bg-green-50 dark:bg-green-900/20 border border-green-100 dark:border-green-800/30 rounded-xl px-4 py-3"><p className="text-xs text-green-600 dark:text-green-400 font-semibold">{importSuccess}</p></div>}
           </div>
@@ -185,31 +264,33 @@ export default function AddPromptForm({ onAdd, onBulkAdd }) {
         <div className="flex gap-3">
           <button
             onClick={() => setOpen(true)}
-            className="flex-1 py-4 px-6 border-2 border-dashed border-gray-200 dark:border-white/8 rounded-2xl text-gray-400 font-semibold transition-all duration-200 flex items-center justify-center gap-2 group"
-            onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--color-primary)'; e.currentTarget.style.color = 'var(--color-primary)' }}
-            onMouseLeave={e => { e.currentTarget.style.borderColor = ''; e.currentTarget.style.color = '' }}
+            className="flex-1 rounded-2xl border border-dashed border-orange-200 bg-orange-50/80 px-5 py-4 text-sm font-semibold text-orange-600 transition-all duration-200 hover:-translate-y-0.5 hover:border-orange-300 hover:bg-orange-100 dark:border-orange-500/20 dark:bg-orange-500/8 dark:text-orange-300"
           >
-            <span className="text-2xl group-hover:rotate-90 transition-transform duration-200">+</span>
-            Add Your Own Prompt
+            <span className="flex items-center justify-center gap-2">
+              <span className="inline-flex h-8 w-8 items-center justify-center rounded-xl bg-white dark:bg-zinc-900 shadow-sm text-orange-500"><PlusIcon /></span>
+              Add Your Own Prompt
+            </span>
           </button>
           <button
             onClick={() => setImportOpen(true)}
-            className="py-4 px-6 border-2 border-dashed border-gray-200 dark:border-white/8 rounded-2xl text-gray-400 font-semibold transition-all duration-200 flex items-center justify-center gap-2"
-            onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--color-primary)'; e.currentTarget.style.color = 'var(--color-primary)' }}
-            onMouseLeave={e => { e.currentTarget.style.borderColor = ''; e.currentTarget.style.color = '' }}
+            className="rounded-2xl border border-slate-200 bg-white/80 px-5 py-4 text-sm font-semibold text-slate-600 transition-all duration-200 hover:-translate-y-0.5 hover:border-slate-300 dark:border-white/8 dark:bg-zinc-900/80 dark:text-slate-300"
           >
-            <span>📥</span>
-            Import
+            <span className="flex items-center justify-center gap-2">
+              <span className="inline-flex h-8 w-8 items-center justify-center rounded-xl bg-slate-100 text-slate-600 dark:bg-white/6 dark:text-slate-200"><DownloadIcon /></span>
+              Import
+            </span>
           </button>
         </div>
       )}
 
       {/* Add Prompt Form */}
       {open && (
-        <div className="bg-white dark:bg-[#111] rounded-2xl border border-gray-100 dark:border-white/8 p-6 shadow-xl animate-scale-in">
+        <div ref={addModalRef} className="bg-white dark:bg-[#111] rounded-2xl border border-gray-100 dark:border-white/8 p-6 shadow-xl animate-scale-in" role="dialog" aria-modal="true" aria-labelledby="add-prompt-title" tabIndex={-1}>
           <div className="flex items-center justify-between mb-6">
-            <h3 className="font-bold text-gray-900 dark:text-white text-xl">Add New Prompt</h3>
-            <button onClick={() => setOpen(false)} className="text-gray-400 hover:text-gray-600 transition text-xl">✕</button>
+            <h3 id="add-prompt-title" className="font-bold text-gray-900 dark:text-white text-xl">Add New Prompt</h3>
+            <button onClick={() => setOpen(false)} className="flex h-9 w-9 items-center justify-center rounded-xl border border-gray-200 bg-gray-50 text-gray-500 transition hover:border-orange-200 hover:text-orange-500 dark:border-white/8 dark:bg-white/4 dark:text-gray-400 dark:hover:text-orange-400">
+              <CloseIcon />
+            </button>
           </div>
           <div className="flex flex-col gap-4">
             <div>
@@ -234,10 +315,9 @@ export default function AddPromptForm({ onAdd, onBulkAdd }) {
           <div className="flex gap-3 mt-6">
             <button
               onClick={handleSubmit}
-              className="flex-1 py-3 text-white rounded-xl font-bold text-sm transition-all duration-200 active:scale-95"
-              style={{ backgroundColor: 'var(--color-primary)' }}
+              className="primary-button flex-1 rounded-xl py-3 font-bold text-sm active:scale-[0.99]"
             >Add Prompt</button>
-            <button onClick={() => setOpen(false)} className="flex-1 py-3 bg-gray-50 dark:bg-white/5 hover:bg-gray-100 dark:hover:bg-white/8 text-gray-600 dark:text-gray-400 rounded-xl font-bold text-sm transition-all duration-200 border border-gray-100 dark:border-white/6 active:scale-95">Cancel</button>
+            <button onClick={() => setOpen(false)} className="secondary-button flex-1 rounded-xl py-3 font-bold text-sm active:scale-[0.99]">Cancel</button>
           </div>
         </div>
       )}

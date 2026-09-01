@@ -55,6 +55,8 @@ export default function AIChat({ user, allPrompts, onClose }) {
     setLoading(true)
 
     try {
+      // limit history to last few messages to save token usage
+      const history = newMessages.slice(-6)
       const response = await fetch('https://api.anthropic.com/v1/messages', {
         method: 'POST',
         headers: {
@@ -65,9 +67,9 @@ export default function AIChat({ user, allPrompts, onClose }) {
         },
         body: JSON.stringify({
           model: 'claude-sonnet-4-20250514',
-          max_tokens: 1000,
+          max_tokens: 300,
           system: 'You are a helpful AI assistant inside a prompt management app called AI Prompt Studio. Help users craft, improve, and use AI prompts effectively. Be concise, practical, and specific.',
-          messages: newMessages
+          messages: history
         })
       })
 
@@ -88,7 +90,7 @@ export default function AIChat({ user, allPrompts, onClose }) {
     }
   }
 
-  const usePrompt = (prompt) => {
+  const applyPrompt = (prompt) => {
     setInput(prompt.prompt)
     setShowPromptPicker(false)
     setPromptSearch('')
@@ -228,10 +230,10 @@ export default function AIChat({ user, allPrompts, onClose }) {
               className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-white/8 bg-white dark:bg-white/5 text-gray-900 dark:text-gray-100 text-xs focus:outline-none mb-2 transition"
             />
             <div className="flex flex-col gap-1">
-              {filteredPrompts.map(p => (
+                {filteredPrompts.map(p => (
                 <button
                   key={p.id}
-                  onClick={() => usePrompt(p)}
+                  onClick={() => applyPrompt(p)}
                   className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-white dark:hover:bg-white/8 text-left transition-colors"
                 >
                   <span className="text-xs font-medium text-gray-900 dark:text-white truncate flex-1">{p.title}</span>
