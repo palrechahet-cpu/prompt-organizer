@@ -33,7 +33,33 @@ function applyTheme(theme) {
   document.documentElement.style.setProperty('--color-secondary', c.secondary)
 }
 
-function ShareModal({ prompt, onClose, user, onRevoke }) {
+function buildShareUrl(type, id) {
+  const url = new URL(window.location.href)
+  url.search = ''
+  url.hash = ''
+  const base = (import.meta.env.BASE_URL || '/').replace(/\/+$/, '') || '/'
+  const route = `${base === '/' ? '' : base}/${type === 'prompt' ? 's' : 'c'}/${id}`.replace(/\/+/g, '/')
+  url.pathname = route
+  return url.toString()
+}
+
+function getRouteShareMeta() {
+  const pathname = decodeURIComponent(window.location.pathname || '/')
+  const match = pathname.match(/(?:^|\/)([sc])\/([^/]+)$/)
+  if (!match) return null
+  return { type: match[1] === 's' ? 'prompt' : 'collection', id: match[2] }
+}
+
+function resetShareUrl() {
+  const url = new URL(window.location.href)
+  url.search = ''
+  url.hash = ''
+  const base = (import.meta.env.BASE_URL || '/').replace(/\/+$/, '') || '/'
+  url.pathname = base === '/' ? '/' : base
+  window.history.replaceState({}, '', url.toString())
+}
+
+function ShareModal({ prompt, onClose, user, onRevoke, showToast }) {
   const modalRef = useRef(null)
   useFocusTrap(modalRef, onClose)
   const [copied, setCopied] = useState(false)
@@ -49,37 +75,19 @@ function ShareModal({ prompt, onClose, user, onRevoke }) {
   const createSharedLink = async () => {
     setCreating(true)
     try {
-      const payload = { title: prompt.title, category: prompt.category, prompt: prompt.prompt, tags: prompt.tags || [], createdAt: Date.now(), visibility }
-      // attach owner metadata when available
+      const payload = { title: prompt.title, category: prompt.category, prompt: prompt.prompt, tags: prompt.tags || [], visibility, active: true, createdAt: Date.now() }
       if (user) { payload.ownerId = user.uid; payload.ownerName = user.displayName || null; payload.ownerPhoto = user.photoURL || null }
-      // create doc in sharedPrompts collection
       const ref = await addDoc(collection(db, 'sharedPrompts'), payload)
       setShareDocId(ref.id)
       setShareOwnerId(payload.ownerId || null)
-      const url = new URL(window.location.href)
-      url.search = ''
-      url.pathname = `/s/${ref.id}`
-      const link = url.toString()
+      const link = buildShareUrl('prompt', ref.id)
       setShareUrl(link)
       await navigator.clipboard.writeText(link)
       setCopied(true)
       setTimeout(() => setCopied(false), 2000)
     } catch (err) {
       console.error('createSharedLink error', err)
-      // fallback to encoded link in case of failure
-      try {
-        const encoded = btoa(encodeURIComponent(JSON.stringify({ title: prompt.title, category: prompt.category, prompt: prompt.prompt, tags: prompt.tags })))
-        const url = new URL(window.location.href)
-        url.search = ''
-        url.searchParams.set('share', encoded)
-        const link = url.toString()
-        setShareUrl(link)
-        await navigator.clipboard.writeText(link)
-        setCopied(true)
-        setTimeout(() => setCopied(false), 2000)
-      } catch (e) {
-        console.error('Share link error', e)
-      }
+      showToast?.({ message: 'Could not create a share link right now.', type: 'error' })
     }
     setCreating(false)
   }
@@ -124,7 +132,7 @@ function ShareModal({ prompt, onClose, user, onRevoke }) {
   )
 }
 
-function ShareCollectionModal({ collection, prompts, user, onClose, onRevoke }) {
+function ShareCollectionModal({ collection, prompts, user, onClose, onRevoke, showToast }) {
   const modalRef = useRef(null)
   useFocusTrap(modalRef, onClose)
   const [copied, setCopied] = useState(false)
@@ -145,22 +153,21 @@ function ShareCollectionModal({ collection, prompts, user, onClose, onRevoke }) 
         ownerName: user ? user.displayName : null,
         ownerPhoto: user ? user.photoURL : null,
         visibility,
+        active: true,
         prompts: prompts.filter(p => p.collections?.includes(collection.id)).map(p => ({ title: p.title, prompt: p.prompt, category: p.category, tags: p.tags || [] })),
         createdAt: Date.now()
       }
       const ref = await addDoc(collection(db, 'sharedCollections'), payload)
       setShareDocId(ref.id)
       setShareOwnerId(payload.ownerId || null)
-      const url = new URL(window.location.href)
-      url.search = ''
-      url.pathname = `/c/${ref.id}`
-      const link = url.toString()
+      const link = buildShareUrl('collection', ref.id)
       setShareUrl(link)
       await navigator.clipboard.writeText(link)
       setCopied(true)
       setTimeout(() => setCopied(false), 2000)
     } catch (err) {
       console.error('createSharedCollection error', err)
+      showToast?.({ message: 'Could not create a collection share link.', type: 'error' })
     }
     setCreating(false)
   }
@@ -207,9 +214,11 @@ function ShareCollectionModal({ collection, prompts, user, onClose, onRevoke }) 
   )
 }
 
-function SharedPromptModal({ prompt, onImport, onClose }) {
+function SharedPromptModal({ prompt, onImport, onClose, collections = [], onSaveToCollection }) {
   const modalRef = useRef(null)
   useFocusTrap(modalRef, onClose)
+  const [selectedCollectionId, setSelectedCollectionId] = useState('')
+
   return (
     <div ref={modalRef} className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm px-4">
       <div className="bg-white dark:bg-zinc-900 border border-gray-100 dark:border-zinc-800 rounded-2xl shadow-2xl w-full max-w-md p-6 flex flex-col gap-4">
@@ -225,7 +234,7 @@ function SharedPromptModal({ prompt, onImport, onClose }) {
             )}
           </div>
         </div>
-        <p className="text-sm text-gray-500 dark:text-gray-400">Someone shared this prompt with you. Add it to your library?</p>
+        <p className="text-sm text-gray-500 dark:text-gray-400">Someone shared this prompt with you. Save it to your library or a collection.</p>
         <div className="bg-gray-50 dark:bg-zinc-800 rounded-xl p-4 border border-gray-100 dark:border-zinc-700 flex flex-col gap-2">
           <p className="font-semibold text-gray-800 dark:text-white text-sm">{prompt.title}</p>
           <span className="text-xs font-medium" style={{ color: 'var(--color-primary)' }}>{prompt.category}</span>
@@ -236,8 +245,18 @@ function SharedPromptModal({ prompt, onImport, onClose }) {
             </div>
           )}
         </div>
+        {collections.length > 0 && (
+          <div className="flex flex-col gap-2">
+            <label className="text-xs font-semibold text-gray-600 dark:text-gray-300">Save to collection</label>
+            <select value={selectedCollectionId} onChange={e => setSelectedCollectionId(e.target.value)} className="px-3 py-2 rounded-xl border border-gray-200 dark:border-zinc-700 bg-gray-50 dark:bg-zinc-800 text-sm text-gray-700 dark:text-gray-200">
+              <option value="">Choose a collection</option>
+              {collections.map(col => <option key={col.id} value={col.id}>{col.name}</option>)}
+            </select>
+          </div>
+        )}
         <div className="flex gap-2">
           <button onClick={onImport} className="flex-1 py-2.5 text-white rounded-xl text-sm font-semibold transition-all duration-200 shadow-sm active:scale-95" style={{ backgroundColor: 'var(--color-primary)' }}>Add to My Library</button>
+          <button onClick={() => onSaveToCollection?.(selectedCollectionId)} disabled={!selectedCollectionId} className="flex-1 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200 disabled:opacity-50 bg-gray-100 dark:bg-zinc-800 text-gray-700 dark:text-gray-200">Save to Collection</button>
           <button onClick={onClose} className="py-2.5 px-4 bg-gray-100 dark:bg-zinc-800 hover:bg-gray-200 dark:hover:bg-zinc-700 text-gray-500 dark:text-gray-400 rounded-xl text-sm font-semibold transition-all duration-200 active:scale-95">Dismiss</button>
         </div>
       </div>
@@ -468,18 +487,16 @@ function App() {
   useEffect(() => {
     const tryLoadShared = async () => {
       try {
-        const path = window.location.pathname || ''
-        const m = path.match(/^\/s\/([^/]+)/)
-        if (!m) return
-        const id = m[1]
-        const snap = await getDoc(doc(db, 'sharedPrompts', id))
-          if (snap.exists()) {
-            const data = snap.data()
-            if (data.active === false) { showToast('This shared prompt has been revoked'); return }
-            setIncomingSharedPrompt({ id: snap.id, ...data })
-          } else {
-            showToast('Shared prompt not found')
-          }
+        const route = getRouteShareMeta()
+        if (!route || route.type !== 'prompt') return
+        const snap = await getDoc(doc(db, 'sharedPrompts', route.id))
+        if (snap.exists()) {
+          const data = snap.data()
+          if (data.active === false) { showToast('This shared prompt has been revoked'); return }
+          setIncomingSharedPrompt({ id: snap.id, ...data })
+        } else {
+          showToast('Shared prompt not found')
+        }
       } catch (err) {
         console.error('Error loading shared prompt', err)
       }
@@ -491,18 +508,16 @@ function App() {
   useEffect(() => {
     const tryLoadSharedCollection = async () => {
       try {
-        const path = window.location.pathname || ''
-        const m = path.match(/^\/c\/([^/]+)/)
-        if (!m) return
-        const id = m[1]
-        const snap = await getDoc(doc(db, 'sharedCollections', id))
-          if (snap.exists()) {
-            const data = snap.data()
-            if (data.active === false) { showToast('This shared collection has been revoked'); return }
-            setIncomingSharedCollection({ id: snap.id, ...data })
-          } else {
-            showToast('Shared collection not found')
-          }
+        const route = getRouteShareMeta()
+        if (!route || route.type !== 'collection') return
+        const snap = await getDoc(doc(db, 'sharedCollections', route.id))
+        if (snap.exists()) {
+          const data = snap.data()
+          if (data.active === false) { showToast('This shared collection has been revoked'); return }
+          setIncomingSharedCollection({ id: snap.id, ...data })
+        } else {
+          showToast('Shared collection not found')
+        }
       } catch (err) {
         console.error('Error loading shared collection', err)
       }
@@ -747,29 +762,42 @@ function App() {
     if (!incomingSharedPrompt) return
     addPrompt(incomingSharedPrompt)
     setIncomingSharedPrompt(null)
-    const url = new URL(window.location.href)
-    url.searchParams.delete('share')
-    window.history.replaceState({}, '', url.toString())
+    resetShareUrl()
   }
 
-  const importSharedCollection = async (shared) => {
+  const saveSharedPromptToCollection = async (collectionId) => {
+    if (!incomingSharedPrompt || !collectionId || !user) {
+      if (!user) showToast('Sign in to save this prompt to a collection')
+      return
+    }
+
+    const prompt = incomingSharedPrompt
+    const userPromptRef = doc(collection(db, 'users', user.uid, 'prompts'))
+    const newPrompt = { ...prompt, id: userPromptRef.id, favorite: false, builtIn: false, collections: [collectionId], createdAt: Date.now() }
+    await setDoc(userPromptRef, newPrompt)
+    showToast('Prompt saved to your collection')
+    setIncomingSharedPrompt(null)
+    resetShareUrl()
+  }
+
+  const importSharedCollection = async (shared, collectionId = null) => {
     if (!shared) return
     if (!user) { showToast('Sign in to import this collection'); return }
     try {
-      // create collection in user's collections
-      const ref = doc(collection(db, 'users', user.uid, 'collections'))
-      await setDoc(ref, { name: shared.name, emoji: shared.emoji, createdAt: Date.now() })
-      const newCollectionId = ref.id
-      // add prompts to user's library and attach to new collection
+      let targetCollectionId = collectionId
+      if (!targetCollectionId) {
+        const ref = doc(collection(db, 'users', user.uid, 'collections'))
+        await setDoc(ref, { name: shared.name, emoji: shared.emoji, createdAt: Date.now() })
+        targetCollectionId = ref.id
+      }
+
       await Promise.all((shared.prompts || []).map(async (p, i) => {
         const pref = doc(collection(db, 'users', user.uid, 'prompts'))
-        await setDoc(pref, { ...p, favorite: false, builtIn: false, collections: [newCollectionId], createdAt: Date.now() + i })
+        await setDoc(pref, { ...p, favorite: false, builtIn: false, collections: [targetCollectionId], createdAt: Date.now() + i })
       }))
-      showToast('Collection imported!')
+      showToast(collectionId ? 'Collection saved to your account' : 'Collection imported!')
       setIncomingSharedCollection(null)
-      const url = new URL(window.location.href)
-      url.pathname = '/'
-      window.history.replaceState({}, '', url.toString())
+      resetShareUrl()
     } catch (err) {
       console.error('importSharedCollection error', err)
       showToast('Import failed')
@@ -778,16 +806,12 @@ function App() {
 
   const dismissSharedCollection = () => {
     setIncomingSharedCollection(null)
-    const url = new URL(window.location.href)
-    url.searchParams.delete('share')
-    window.history.replaceState({}, '', url.toString())
+    resetShareUrl()
   }
 
   const dismissSharedPrompt = () => {
     setIncomingSharedPrompt(null)
-    const url = new URL(window.location.href)
-    url.searchParams.delete('share')
-    window.history.replaceState({}, '', url.toString())
+    resetShareUrl()
   }
 
   const allPrompts = [
@@ -797,13 +821,76 @@ function App() {
 
   const allCategories = ['All', ...new Set([...allPrompts.map(p => p.category), ...userCategories])]
 
-  const filtered = allPrompts.filter(p => {
-    const matchesSearch = p.title.toLowerCase().includes(search.toLowerCase()) || p.tags?.some(t => t.toLowerCase().includes(search.toLowerCase())) || p.prompt?.toLowerCase().includes(search.toLowerCase())
-    const matchesCategory = activeCategory === 'All' || p.category === activeCategory
-    const matchesFav = !showFavoritesOnly || p.favorite
-    const matchesCollection = !activeCollection || p.collections?.includes(activeCollection.id)
-    return matchesSearch && matchesCategory && matchesFav && matchesCollection
-  })
+  const normalizedSearch = search.trim().toLowerCase()
+  const filtered = allPrompts
+    .filter(p => {
+      const lowerTitle = (p.title || '').toLowerCase()
+      const lowerPrompt = (p.prompt || '').toLowerCase()
+      const lowerCategory = (p.category || '').toLowerCase()
+      const lowerTags = (p.tags || []).map(tag => String(tag).toLowerCase())
+      const matchesSearch = !normalizedSearch || lowerTitle.includes(normalizedSearch) || lowerPrompt.includes(normalizedSearch) || lowerCategory.includes(normalizedSearch) || lowerTags.some(tag => tag.includes(normalizedSearch))
+      const matchesCategory = activeCategory === 'All' || p.category === activeCategory
+      const matchesFav = !showFavoritesOnly || p.favorite
+      const matchesCollection = !activeCollection || p.collections?.includes(activeCollection.id)
+      return matchesSearch && matchesCategory && matchesFav && matchesCollection
+    })
+    .map(p => {
+      if (!normalizedSearch) return { item: p, score: 0 }
+
+      const lowerTitle = (p.title || '').toLowerCase()
+      const lowerPrompt = (p.prompt || '').toLowerCase()
+      const lowerCategory = (p.category || '').toLowerCase()
+      const lowerTags = (p.tags || []).map(tag => String(tag).toLowerCase())
+
+      let score = 0
+      if (lowerTitle === normalizedSearch) score += 200
+      if (lowerTitle.includes(normalizedSearch)) score += 100
+      if (lowerPrompt.includes(normalizedSearch)) score += 60
+      if (lowerCategory === normalizedSearch) score += 80
+      if (lowerCategory.includes(normalizedSearch)) score += 40
+      if (lowerTags.some(tag => tag === normalizedSearch)) score += 80
+      if (lowerTags.some(tag => tag.includes(normalizedSearch))) score += 30
+
+      return { item: p, score }
+    })
+    .sort((a, b) => {
+      if (!normalizedSearch) return 0
+      return b.score - a.score
+    })
+    .map(entry => entry.item)
+
+  // When the user types a search, bring the results into view so they
+  // don't have to manually scroll down to find matches.
+  useEffect(() => {
+    try {
+      if (!search || typeof window === 'undefined') return
+      const mainEl = document.querySelector('main')
+      if (mainEl && mainEl.scrollIntoView) {
+        // smooth behavior makes the transition less jarring
+        mainEl.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      }
+    } catch (e) {
+      // swallow any errors — this is a nicety, not critical
+      console.error('scroll-to-search error', e)
+    }
+  }, [search])
+
+  // Global keyboard shortcut: press '/' to focus the search input
+  useEffect(() => {
+    const onKey = (e) => {
+      // ignore when modifier keys are pressed or when typing in inputs
+      if (e.metaKey || e.ctrlKey || e.altKey) return
+      const tag = (document.activeElement && document.activeElement.tagName) || ''
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || document.activeElement?.isContentEditable) return
+      if (e.key === '/') {
+        e.preventDefault()
+        const el = document.getElementById('global-search-input') || document.getElementById('global-search-input-mobile')
+        if (el) el.focus()
+      }
+    }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [])
 
   if (authLoading) {
     return (
@@ -917,20 +1004,40 @@ function App() {
                   <p className="text-sm">Try a different search or category</p>
                 </div>
               ) : (
-                filtered.map(p => (
-                  <PromptCard
-                    key={p.id}
-                    prompt={p}
-                    selected={selectedPromptIds.includes(p.id)}
-                    selectable={true}
-                    onToggleSelect={() => toggleSelectedPrompt(p.id)}
-                    onFavorite={() => toggleFavorite(p.id)}
-                    onCopy={() => copyPrompt(p.prompt, p.id)}
-                    onDelete={() => deletePrompt(p.id)}
-                    onShare={() => setSharePrompt(p)}
-                    onAddToCollection={() => setCollectionModalPrompt(p)}
-                  />
-                ))
+                <>
+                  {search && filtered.length > 0 && (
+                    <div className="col-span-full">
+                      <div className="sticky top-20 bg-white dark:bg-zinc-900 border border-gray-100 dark:border-zinc-800 rounded-2xl p-4 mb-4 shadow-md">
+                        <div className="flex items-start gap-4">
+                          <div className="flex-1">
+                            <p className="text-xs text-gray-400">Best Match</p>
+                            <p className="font-semibold text-gray-900 dark:text-white">{filtered[0].title}</p>
+                            <p className="text-xs text-gray-400 line-clamp-2 mt-1">{filtered[0].prompt}</p>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <button onClick={() => copyPrompt(filtered[0].prompt, filtered[0].id)} className="px-3 py-2 bg-gray-100 dark:bg-zinc-800 rounded-lg text-xs">Copy</button>
+                            <button onClick={() => { setCollectionModalPrompt(filtered[0]) }} className="px-3 py-2 bg-orange-500 text-white rounded-lg text-xs">Save to Collection</button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {(search ? filtered.slice(1) : filtered).map(p => (
+                    <PromptCard
+                      key={p.id}
+                      prompt={p}
+                      selected={selectedPromptIds.includes(p.id)}
+                      selectable={true}
+                      onToggleSelect={() => toggleSelectedPrompt(p.id)}
+                      onFavorite={() => toggleFavorite(p.id)}
+                      onCopy={() => copyPrompt(p.prompt, p.id)}
+                      onDelete={() => deletePrompt(p.id)}
+                      onShare={() => setSharePrompt(p)}
+                      onAddToCollection={() => setCollectionModalPrompt(p)}
+                    />
+                  ))}
+                </>
               )}
             </div>
           </main>
@@ -940,8 +1047,24 @@ function App() {
         {showMyShares && user && <MySharesModal user={user} onClose={() => setShowMyShares(false)} showToast={showToast} />}
         {sharePrompt && <ShareModal prompt={sharePrompt} onClose={() => setSharePrompt(null)} user={user} showToast={showToast} onRevoke={revokeSharedDoc} />}
         {shareCollection && <ShareCollectionModal collection={shareCollection} prompts={allPrompts} user={user} onClose={() => setShareCollection(null)} showToast={showToast} onRevoke={revokeSharedDoc} />}
-        {incomingSharedPrompt && <SharedPromptModal prompt={incomingSharedPrompt} onImport={importSharedPrompt} onClose={dismissSharedPrompt} />}
-        {incomingSharedCollection && <SharedPromptModal prompt={{ title: incomingSharedCollection.name, prompt: `${incomingSharedCollection.prompts.map(p => p.title).join('\n')}`, category: 'Collection', tags: [] }} onImport={() => importSharedCollection(incomingSharedCollection)} onClose={dismissSharedCollection} />}
+        {incomingSharedPrompt && (
+          <SharedPromptModal
+            prompt={incomingSharedPrompt}
+            collections={collections}
+            onImport={importSharedPrompt}
+            onSaveToCollection={saveSharedPromptToCollection}
+            onClose={dismissSharedPrompt}
+          />
+        )}
+        {incomingSharedCollection && (
+          <SharedPromptModal
+            prompt={{ title: incomingSharedCollection.name, prompt: `${incomingSharedCollection.prompts.map(p => p.title).join('\n')}`, category: 'Collection', tags: [] }}
+            collections={collections}
+            onImport={() => importSharedCollection(incomingSharedCollection)}
+            onSaveToCollection={(collectionId) => importSharedCollection(incomingSharedCollection, collectionId)}
+            onClose={dismissSharedCollection}
+          />
+        )}
         {showTrash && <TrashModal deletedPrompts={userPrompts.filter(p => p.deleted)} onRestore={restorePrompt} onPurge={purgePrompt} onClose={() => setShowTrash(false)} />}
         {collectionModalPrompt && (
           <AddToCollectionModal

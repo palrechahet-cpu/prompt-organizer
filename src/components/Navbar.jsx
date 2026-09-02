@@ -161,6 +161,7 @@ export default function Navbar({ search, setSearch, darkMode, setDarkMode, showF
               value={search}
               onChange={e => setSearch(e.target.value)}
               placeholder="Search prompts..."
+              id="global-search-input"
               className="hidden sm:flex flex-1 max-w-md px-4 py-2 rounded-lg border border-[#30363d] bg-[#0f1117] text-gray-200 placeholder-gray-500 text-sm focus:outline-none focus:ring-2 transition"
               style={{ '--tw-ring-color': 'var(--color-primary)' }}
             />
@@ -172,6 +173,7 @@ export default function Navbar({ search, setSearch, darkMode, setDarkMode, showF
                 onChange={e => setSearch(e.target.value)}
                 placeholder="Search..."
                 autoFocus
+                id="global-search-input-mobile"
                 className="sm:hidden flex-1 px-3 py-2 rounded-lg border border-[#30363d] bg-[#0f1117] text-gray-200 placeholder-gray-500 text-sm focus:outline-none transition"
               />
             )}
