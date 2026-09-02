@@ -1,6 +1,7 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
+import useFocusTrap from './hooks/useFocusTrap'
 import { onAuthStateChanged, signOut } from 'firebase/auth'
-import { collection, doc, setDoc, deleteDoc, onSnapshot, getDocs, addDoc, getDoc } from 'firebase/firestore'
+import { collection, doc, setDoc, deleteDoc, onSnapshot, getDocs, addDoc, getDoc, serverTimestamp } from 'firebase/firestore'
 import { auth, db } from './firebase'
 import Navbar from './components/Navbar'
 import HeroSection from './components/HeroSection'
@@ -16,6 +17,7 @@ import Toast from './components/Toast'
 import LoginPage from './components/LoginPage'
 import OnboardingTour from './components/OnboardingTour'
 import defaultPrompts from './data/prompts'
+import MySharesModal from './components/MyShares'
 
 const THEME_COLORS = {
   orange: { primary: '#f97316', secondary: '#f59e0b' },
@@ -31,19 +33,29 @@ function applyTheme(theme) {
   document.documentElement.style.setProperty('--color-secondary', c.secondary)
 }
 
-function ShareModal({ prompt, onClose }) {
+function ShareModal({ prompt, onClose, user, onRevoke }) {
+  const modalRef = useRef(null)
+  useFocusTrap(modalRef, onClose)
   const [copied, setCopied] = useState(false)
   const [creating, setCreating] = useState(false)
   const [shareUrl, setShareUrl] = useState('')
+  const [visibility, setVisibility] = useState('anyone') // 'private' | 'anyone' | 'public'
+  const [consentPublic, setConsentPublic] = useState(false)
+  const [shareDocId, setShareDocId] = useState('')
+  const [shareOwnerId, setShareOwnerId] = useState(null)
 
   const handleBackdrop = (e) => { if (e.target === e.currentTarget) onClose() }
 
   const createSharedLink = async () => {
     setCreating(true)
     try {
-      const payload = { title: prompt.title, category: prompt.category, prompt: prompt.prompt, tags: prompt.tags || [], createdAt: Date.now() }
+      const payload = { title: prompt.title, category: prompt.category, prompt: prompt.prompt, tags: prompt.tags || [], createdAt: Date.now(), visibility }
+      // attach owner metadata when available
+      if (user) { payload.ownerId = user.uid; payload.ownerName = user.displayName || null; payload.ownerPhoto = user.photoURL || null }
       // create doc in sharedPrompts collection
       const ref = await addDoc(collection(db, 'sharedPrompts'), payload)
+      setShareDocId(ref.id)
+      setShareOwnerId(payload.ownerId || null)
       const url = new URL(window.location.href)
       url.search = ''
       url.pathname = `/s/${ref.id}`
@@ -53,6 +65,7 @@ function ShareModal({ prompt, onClose }) {
       setCopied(true)
       setTimeout(() => setCopied(false), 2000)
     } catch (err) {
+      console.error('createSharedLink error', err)
       // fallback to encoded link in case of failure
       try {
         const encoded = btoa(encodeURIComponent(JSON.stringify({ title: prompt.title, category: prompt.category, prompt: prompt.prompt, tags: prompt.tags })))
@@ -72,7 +85,7 @@ function ShareModal({ prompt, onClose }) {
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm px-4" onClick={handleBackdrop}>
+    <div ref={modalRef} className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm px-4" onClick={handleBackdrop}>
       <div className="bg-white dark:bg-zinc-900 border border-gray-100 dark:border-zinc-800 rounded-2xl shadow-2xl w-full max-w-md p-6 flex flex-col gap-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2"><span className="text-xl">🔗</span><h2 className="font-bold text-gray-900 dark:text-white text-lg">Share Prompt</h2></div>
@@ -82,9 +95,28 @@ function ShareModal({ prompt, onClose }) {
           <p className="font-semibold text-gray-800 dark:text-white text-sm mb-1">{prompt.title}</p>
           <p className="text-gray-400 dark:text-gray-500 text-xs line-clamp-2">{prompt.prompt}</p>
         </div>
-        <div className="flex gap-2 items-center">
-          <input readOnly value={shareUrl} placeholder="Create a persistent link" className="flex-1 text-xs bg-gray-50 dark:bg-zinc-800 border border-gray-200 dark:border-zinc-700 rounded-xl px-3 py-2.5 text-gray-500 dark:text-gray-400 truncate focus:outline-none" />
-          <button onClick={createSharedLink} disabled={creating} className={`flex-shrink-0 px-4 py-2.5 rounded-xl text-xs font-semibold transition-all duration-200 active:scale-95 ${copied ? 'bg-green-500 text-white' : 'text-white shadow-sm'}`} style={{ backgroundColor: copied ? undefined : 'var(--color-primary)' }}>{copied ? '✓ Copied!' : (creating ? 'Creating...' : 'Create Link')}</button>
+        <div className="flex flex-col gap-2">
+          <div className="flex items-center gap-3">
+            <label className="text-xs font-semibold">Visibility</label>
+            <div className="flex items-center gap-2 text-xs">
+              <label className="inline-flex items-center gap-2"><input type="radio" name="vis" value="private" checked={visibility==='private'} onChange={() => setVisibility('private')} /> Private</label>
+              <label className="inline-flex items-center gap-2"><input type="radio" name="vis" value="anyone" checked={visibility==='anyone'} onChange={() => setVisibility('anyone')} /> Anyone with link</label>
+              <label className="inline-flex items-center gap-2"><input type="radio" name="vis" value="public" checked={visibility==='public'} onChange={() => setVisibility('public')} /> Public</label>
+            </div>
+          </div>
+          {visibility === 'public' && (
+            <div className="flex items-center gap-2 text-xs">
+              <input type="checkbox" checked={consentPublic} onChange={e => setConsentPublic(e.target.checked)} />
+              <span>I understand this will make the prompt publicly discoverable.</span>
+            </div>
+          )}
+          <div className="flex gap-2 items-center">
+            <input readOnly value={shareUrl} placeholder="Create a persistent link" className="flex-1 text-xs bg-gray-50 dark:bg-zinc-800 border border-gray-200 dark:border-zinc-700 rounded-xl px-3 py-2.5 text-gray-500 dark:text-gray-400 truncate focus:outline-none" />
+            <button onClick={createSharedLink} disabled={creating || (visibility==='public' && !consentPublic)} className={`flex-shrink-0 px-4 py-2.5 rounded-xl text-xs font-semibold transition-all duration-200 active:scale-95 ${copied ? 'bg-green-500 text-white' : 'text-white shadow-sm'}`} style={{ backgroundColor: copied ? undefined : 'var(--color-primary)' }}>{copied ? '✓ Copied!' : (creating ? 'Creating...' : 'Create Link')}</button>
+            {shareDocId && shareOwnerId && user && shareOwnerId === user.uid && (
+              <button onClick={async () => { await onRevoke('prompt', shareDocId); setShareUrl('') }} className="ml-2 px-3 py-2 rounded-lg bg-red-500 text-white text-xs">Revoke</button>
+            )}
+          </div>
         </div>
         <p className="text-xs text-gray-400 dark:text-gray-600 text-center">Short permanent link stored in the app — anyone can view and import.</p>
       </div>
@@ -92,10 +124,16 @@ function ShareModal({ prompt, onClose }) {
   )
 }
 
-function ShareCollectionModal({ collection, prompts, user, onClose }) {
+function ShareCollectionModal({ collection, prompts, user, onClose, onRevoke }) {
+  const modalRef = useRef(null)
+  useFocusTrap(modalRef, onClose)
   const [copied, setCopied] = useState(false)
   const [creating, setCreating] = useState(false)
   const [shareUrl, setShareUrl] = useState('')
+  const [visibility, setVisibility] = useState('anyone')
+  const [consentPublic, setConsentPublic] = useState(false)
+  const [shareDocId, setShareDocId] = useState('')
+  const [shareOwnerId, setShareOwnerId] = useState(null)
 
   const createSharedCollection = async () => {
     setCreating(true)
@@ -104,10 +142,15 @@ function ShareCollectionModal({ collection, prompts, user, onClose }) {
         name: collection.name,
         emoji: collection.emoji,
         ownerId: user ? user.uid : null,
+        ownerName: user ? user.displayName : null,
+        ownerPhoto: user ? user.photoURL : null,
+        visibility,
         prompts: prompts.filter(p => p.collections?.includes(collection.id)).map(p => ({ title: p.title, prompt: p.prompt, category: p.category, tags: p.tags || [] })),
         createdAt: Date.now()
       }
       const ref = await addDoc(collection(db, 'sharedCollections'), payload)
+      setShareDocId(ref.id)
+      setShareOwnerId(payload.ownerId || null)
       const url = new URL(window.location.href)
       url.search = ''
       url.pathname = `/c/${ref.id}`
@@ -125,7 +168,7 @@ function ShareCollectionModal({ collection, prompts, user, onClose }) {
   const handleBackdrop = (e) => { if (e.target === e.currentTarget) onClose() }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm px-4" onClick={handleBackdrop}>
+    <div ref={modalRef} className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm px-4" onClick={handleBackdrop}>
       <div className="bg-white dark:bg-zinc-900 border border-gray-100 dark:border-zinc-800 rounded-2xl shadow-2xl w-full max-w-md p-6 flex flex-col gap-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2"><span className="text-xl">🔗</span><h2 className="font-bold text-gray-900 dark:text-white text-lg">Share Collection</h2></div>
@@ -135,9 +178,28 @@ function ShareCollectionModal({ collection, prompts, user, onClose }) {
           <p className="font-semibold text-gray-800 dark:text-white text-sm mb-1">{collection.name}</p>
           <p className="text-gray-400 dark:text-gray-500 text-xs">Includes {prompts.filter(p => p.collections?.includes(collection.id)).length} prompts</p>
         </div>
-        <div className="flex gap-2 items-center">
-          <input readOnly value={shareUrl} placeholder="Create a persistent link" className="flex-1 text-xs bg-gray-50 dark:bg-zinc-800 border border-gray-200 dark:border-zinc-700 rounded-xl px-3 py-2.5 text-gray-500 dark:text-gray-400 truncate focus:outline-none" />
-          <button onClick={createSharedCollection} disabled={creating} className={`flex-shrink-0 px-4 py-2.5 rounded-xl text-xs font-semibold transition-all duration-200 active:scale-95 ${copied ? 'bg-green-500 text-white' : 'text-white shadow-sm'}`} style={{ backgroundColor: copied ? undefined : 'var(--color-primary)' }}>{copied ? '✓ Copied!' : (creating ? 'Creating...' : 'Create Link')}</button>
+        <div className="flex flex-col gap-2">
+          <div className="flex items-center gap-3">
+            <label className="text-xs font-semibold">Visibility</label>
+            <div className="flex items-center gap-2 text-xs">
+              <label className="inline-flex items-center gap-2"><input type="radio" name="col-vis" value="private" checked={visibility==='private'} onChange={() => setVisibility('private')} /> Private</label>
+              <label className="inline-flex items-center gap-2"><input type="radio" name="col-vis" value="anyone" checked={visibility==='anyone'} onChange={() => setVisibility('anyone')} /> Anyone with link</label>
+              <label className="inline-flex items-center gap-2"><input type="radio" name="col-vis" value="public" checked={visibility==='public'} onChange={() => setVisibility('public')} /> Public</label>
+            </div>
+          </div>
+          {visibility === 'public' && (
+            <div className="flex items-center gap-2 text-xs">
+              <input type="checkbox" checked={consentPublic} onChange={e => setConsentPublic(e.target.checked)} />
+              <span>I understand this will make the collection publicly discoverable.</span>
+            </div>
+          )}
+          <div className="flex gap-2 items-center">
+            <input readOnly value={shareUrl} placeholder="Create a persistent link" className="flex-1 text-xs bg-gray-50 dark:bg-zinc-800 border border-gray-200 dark:border-zinc-700 rounded-xl px-3 py-2.5 text-gray-500 dark:text-gray-400 truncate focus:outline-none" />
+            <button onClick={createSharedCollection} disabled={creating || (visibility==='public' && !consentPublic)} className={`flex-shrink-0 px-4 py-2.5 rounded-xl text-xs font-semibold transition-all duration-200 active:scale-95 ${copied ? 'bg-green-500 text-white' : 'text-white shadow-sm'}`} style={{ backgroundColor: copied ? undefined : 'var(--color-primary)' }}>{copied ? '✓ Copied!' : (creating ? 'Creating...' : 'Create Link')}</button>
+            {shareDocId && shareOwnerId && user && shareOwnerId === user.uid && (
+              <button onClick={async () => { await onRevoke('collection', shareDocId); setShareUrl('') }} className="ml-2 px-3 py-2 rounded-lg bg-red-500 text-white text-xs">Revoke</button>
+            )}
+          </div>
         </div>
         <p className="text-xs text-gray-400 dark:text-gray-600 text-center">Short permanent link stored in the app — anyone can view and import this collection.</p>
       </div>
@@ -146,10 +208,23 @@ function ShareCollectionModal({ collection, prompts, user, onClose }) {
 }
 
 function SharedPromptModal({ prompt, onImport, onClose }) {
+  const modalRef = useRef(null)
+  useFocusTrap(modalRef, onClose)
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm px-4">
+    <div ref={modalRef} className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm px-4">
       <div className="bg-white dark:bg-zinc-900 border border-gray-100 dark:border-zinc-800 rounded-2xl shadow-2xl w-full max-w-md p-6 flex flex-col gap-4">
-        <div className="flex items-center gap-2"><span className="text-2xl">🎁</span><h2 className="font-bold text-gray-900 dark:text-white text-lg">Shared Prompt</h2></div>
+        <div className="flex items-center gap-2">
+          <span className="text-2xl">🎁</span>
+          <div>
+            <h2 className="font-bold text-gray-900 dark:text-white text-lg">Shared Prompt</h2>
+            {prompt.ownerName && (
+              <div className="text-xs text-gray-500 mt-0.5 flex items-center gap-2">
+                {prompt.ownerPhoto && <img src={prompt.ownerPhoto} alt={prompt.ownerName} className="w-5 h-5 rounded-full" />}
+                <span>Shared by {prompt.ownerName}</span>
+              </div>
+            )}
+          </div>
+        </div>
         <p className="text-sm text-gray-500 dark:text-gray-400">Someone shared this prompt with you. Add it to your library?</p>
         <div className="bg-gray-50 dark:bg-zinc-800 rounded-xl p-4 border border-gray-100 dark:border-zinc-700 flex flex-col gap-2">
           <p className="font-semibold text-gray-800 dark:text-white text-sm">{prompt.title}</p>
@@ -171,9 +246,11 @@ function SharedPromptModal({ prompt, onImport, onClose }) {
 }
 
 function TrashModal({ deletedPrompts, onRestore, onPurge, onClose }) {
+  const modalRef = useRef(null)
+  useFocusTrap(modalRef, onClose)
   const handleBackdrop = (e) => { if (e.target === e.currentTarget) onClose() }
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm px-4" onClick={handleBackdrop}>
+    <div ref={modalRef} className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm px-4" onClick={handleBackdrop}>
       <div className="bg-white dark:bg-zinc-900 border border-gray-100 dark:border-zinc-800 rounded-2xl shadow-2xl w-full max-w-2xl p-6 flex flex-col gap-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2"><span className="text-2xl">🗑️</span><h2 className="font-bold text-gray-900 dark:text-white text-lg">Trash</h2></div>
@@ -206,9 +283,11 @@ function TrashModal({ deletedPrompts, onRestore, onPurge, onClose }) {
 
 function AddCategoryModal({ onAdd, onClose }) {
   const [name, setName] = useState('')
+  const modalRef = useRef(null)
+  useFocusTrap(modalRef, onClose)
   const handleBackdrop = (e) => { if (e.target === e.currentTarget) onClose() }
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm px-4" onClick={handleBackdrop}>
+    <div ref={modalRef} className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm px-4" onClick={handleBackdrop}>
       <div className="bg-white dark:bg-zinc-900 border border-gray-100 dark:border-zinc-800 rounded-2xl shadow-2xl w-full max-w-sm p-6 flex flex-col gap-4">
         <div className="flex items-center justify-between">
           <h2 className="font-bold text-gray-900 dark:text-white text-lg">New Category</h2>
@@ -256,6 +335,23 @@ function App() {
   const [activeCategory, setActiveCategory] = useState('All')
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false)
   const [toast, setToast] = useState(null)
+  const showToast = (payload) => {
+    const t = typeof payload === 'string' ? { message: payload } : payload || { message: '' }
+    setToast(t)
+    setTimeout(() => setToast(null), 3000)
+  }
+
+  const revokeSharedDoc = async (type, id) => {
+    if (!window.confirm('Revoke this shared item? This will disable the link for others.')) return
+    try {
+      const col = type === 'prompt' ? 'sharedPrompts' : 'sharedCollections'
+      await setDoc(doc(db, col, id), { active: false, revokedAt: serverTimestamp() }, { merge: true })
+      showToast({ message: 'Share revoked', actionLabel: 'Undo', onAction: async () => { await setDoc(doc(db, col, id), { active: true, revokedAt: null }, { merge: true }); showToast('Share restored') } })
+    } catch (err) {
+      console.error('revokeSharedDoc error', err)
+      showToast({ message: 'Failed to revoke', type: 'error' })
+    }
+  }
   const [sharePrompt, setSharePrompt] = useState(null)
   const [incomingSharedPrompt, setIncomingSharedPrompt] = useState(null)
   const [shareCollection, setShareCollection] = useState(null)
@@ -263,6 +359,9 @@ function App() {
   const [collectionModalPrompt, setCollectionModalPrompt] = useState(null)
   const [showAddCategory, setShowAddCategory] = useState(false)
   const [showTrash, setShowTrash] = useState(false)
+  const [showMyShares, setShowMyShares] = useState(false)
+  const [selectedPromptIds, setSelectedPromptIds] = useState([])
+  const [bulkActionCollectionId, setBulkActionCollectionId] = useState('')
 
   // Auth
   useEffect(() => {
@@ -275,6 +374,7 @@ function App() {
 
   // Load user prompts
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (!user) { setUserPrompts([]); return }
     const ref = collection(db, 'users', user.uid, 'prompts')
     const unsubscribe = onSnapshot(ref, (snapshot) => {
@@ -296,6 +396,7 @@ function App() {
 
   // Load favorites
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (!user) { setFavorites({}); return }
     const ref = collection(db, 'users', user.uid, 'favorites')
     const unsubscribe = onSnapshot(ref, (snapshot) => {
@@ -308,6 +409,7 @@ function App() {
 
   // Load usage stats
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (!user) { setUsageStats({}); return }
     const ref = doc(db, 'users', user.uid, 'settings', 'usage')
     const unsubscribe = onSnapshot(ref, (snap) => {
@@ -319,6 +421,7 @@ function App() {
 
   // Load collections
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (!user) { setCollections([]); return }
     const ref = collection(db, 'users', user.uid, 'collections')
     const unsubscribe = onSnapshot(ref, (snapshot) => {
@@ -330,6 +433,7 @@ function App() {
 
   // Load user categories
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (!user) { setUserCategories([]); return }
     const ref = collection(db, 'users', user.uid, 'categories')
     const unsubscribe = onSnapshot(ref, (snapshot) => {
@@ -356,7 +460,8 @@ function App() {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
     const shared = params.get('share')
-    if (shared) { try { const decoded = JSON.parse(decodeURIComponent(atob(shared))); setIncomingSharedPrompt(decoded) } catch { } }
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (shared) { try { const decoded = JSON.parse(decodeURIComponent(atob(shared))); setIncomingSharedPrompt(decoded) } catch (e) { console.error('decode shared param', e) } }
   }, [])
 
   // Check for persistent shared prompt via path /s/:id
@@ -368,11 +473,13 @@ function App() {
         if (!m) return
         const id = m[1]
         const snap = await getDoc(doc(db, 'sharedPrompts', id))
-        if (snap.exists()) {
-          setIncomingSharedPrompt(snap.data())
-        } else {
-          showToast('Shared prompt not found')
-        }
+          if (snap.exists()) {
+            const data = snap.data()
+            if (data.active === false) { showToast('This shared prompt has been revoked'); return }
+            setIncomingSharedPrompt({ id: snap.id, ...data })
+          } else {
+            showToast('Shared prompt not found')
+          }
       } catch (err) {
         console.error('Error loading shared prompt', err)
       }
@@ -389,11 +496,13 @@ function App() {
         if (!m) return
         const id = m[1]
         const snap = await getDoc(doc(db, 'sharedCollections', id))
-        if (snap.exists()) {
-          setIncomingSharedCollection({ id: snap.id, ...snap.data() })
-        } else {
-          showToast('Shared collection not found')
-        }
+          if (snap.exists()) {
+            const data = snap.data()
+            if (data.active === false) { showToast('This shared collection has been revoked'); return }
+            setIncomingSharedCollection({ id: snap.id, ...data })
+          } else {
+            showToast('Shared collection not found')
+          }
       } catch (err) {
         console.error('Error loading shared collection', err)
       }
@@ -413,7 +522,7 @@ function App() {
     applyTheme(currentTheme)
   }, [currentTheme])
 
-  const showToast = (message) => { setToast(message); setTimeout(() => setToast(null), 2500) }
+  
 
   const trackUsage = async (promptId) => {
     if (!user || !promptId) return
@@ -506,15 +615,25 @@ function App() {
     showToast('Prompt permanently deleted')
   }
 
-  const addCollection = async ({ name, emoji }) => {
+  const addCollection = async ({ name, emoji, parentId = null }) => {
     if (!user) return
     const ref = doc(collection(db, 'users', user.uid, 'collections'))
-    await setDoc(ref, { name, emoji, createdAt: Date.now() })
+    await setDoc(ref, { name, emoji, parentId, createdAt: Date.now() })
+  }
+
+  const getCollectionDescendants = (id) => {
+    const childIds = collections.filter(col => col.parentId === id).map(col => col.id)
+    let all = [...childIds]
+    childIds.forEach(childId => {
+      all = [...all, ...getCollectionDescendants(childId)]
+    })
+    return all
   }
 
   const deleteCollection = async (id) => {
     if (!user) return
-    await deleteDoc(doc(db, 'users', user.uid, 'collections', id))
+    const idsToDelete = [id, ...getCollectionDescendants(id)]
+    await Promise.all(idsToDelete.map(collectionId => deleteDoc(doc(db, 'users', user.uid, 'collections', collectionId))))
     if (activeCollection?.id === id) setActiveCollection(null)
     showToast('Collection deleted!')
   }
@@ -536,6 +655,47 @@ function App() {
     await setDoc(doc(db, 'users', user.uid, 'prompts', prompt.id), { ...prompt, collections: current.filter(c => c !== collectionId) })
     showToast('Removed from collection!')
   }
+
+  const toggleSelectedPrompt = (promptId) => {
+    setSelectedPromptIds(prev => prev.includes(promptId)
+      ? prev.filter(id => id !== promptId)
+      : [...prev, promptId])
+  }
+
+  const bulkAddToCollection = async (collectionId) => {
+    if (!user || !selectedPromptIds.length) return
+    const selectedPrompts = userPrompts.filter(p => selectedPromptIds.includes(p.id))
+    await Promise.all(selectedPrompts.map(async (prompt) => {
+      const current = prompt.collections || []
+      await setDoc(doc(db, 'users', user.uid, 'prompts', prompt.id), { ...prompt, collections: [...new Set([...current, collectionId])] })
+    }))
+    setSelectedPromptIds([])
+    setBulkActionCollectionId('')
+    showToast(`${selectedPrompts.length} prompts added to collection`)
+  }
+
+  const bulkRemoveFromCollection = async (collectionId) => {
+    if (!user || !selectedPromptIds.length) return
+    const selectedPrompts = userPrompts.filter(p => selectedPromptIds.includes(p.id))
+    await Promise.all(selectedPrompts.map(async (prompt) => {
+      const current = prompt.collections || []
+      await setDoc(doc(db, 'users', user.uid, 'prompts', prompt.id), { ...prompt, collections: current.filter(c => c !== collectionId) })
+    }))
+    setSelectedPromptIds([])
+    setBulkActionCollectionId('')
+    showToast(`${selectedPrompts.length} prompts removed from collection`)
+  }
+
+  const copySelectedPrompts = async () => {
+    if (!selectedPromptIds.length) return
+    const selectedPrompts = userPrompts.filter(p => selectedPromptIds.includes(p.id))
+    const payload = selectedPrompts.map(p => ({ title: p.title, prompt: p.prompt, category: p.category, tags: p.tags || [] }))
+    await navigator.clipboard.writeText(JSON.stringify(payload, null, 2))
+    setSelectedPromptIds([])
+    showToast(`${payload.length} prompts copied to clipboard`)
+  }
+
+  const clearSelectedPrompts = () => setSelectedPromptIds([])
 
   const addCategory = async (name) => {
     if (!user) return
@@ -673,6 +833,7 @@ function App() {
           currentTheme={currentTheme}
           onThemeChange={handleThemeChange}
           onDeleteAccount={deleteAccount}
+          onOpenShares={() => setShowMyShares(true)}
           onOpenTrash={() => setShowTrash(true)}
         />
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6 sm:py-10 flex gap-6">
@@ -719,6 +880,35 @@ function App() {
               userCategories={userCategories}
             />
             <AddPromptForm onAdd={addPrompt} onBulkAdd={bulkAddPrompts} extraCategories={userCategories} />
+            {selectedPromptIds.length > 0 && (
+              <div className="mb-4 flex flex-col gap-3 rounded-2xl border border-gray-200 dark:border-white/8 bg-white dark:bg-zinc-900 p-4">
+                <div className="flex items-center justify-between gap-3">
+                  <p className="text-sm font-semibold text-gray-700 dark:text-gray-200">{selectedPromptIds.length} selected</p>
+                  <button onClick={clearSelectedPrompts} className="text-xs text-gray-400 hover:text-gray-600 dark:hover:text-gray-200">Clear</button>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <select
+                    value={bulkActionCollectionId}
+                    onChange={e => setBulkActionCollectionId(e.target.value)}
+                    className="rounded-lg border border-gray-200 dark:border-zinc-700 bg-gray-50 dark:bg-zinc-800 px-3 py-2 text-xs text-gray-700 dark:text-gray-200"
+                  >
+                    <option value="">Choose collection</option>
+                    {collections.map(col => <option key={col.id} value={col.id}>{col.name}</option>)}
+                  </select>
+                  <button
+                    onClick={() => bulkActionCollectionId && bulkAddToCollection(bulkActionCollectionId)}
+                    disabled={!bulkActionCollectionId}
+                    className="rounded-lg bg-orange-500 text-white px-3 py-2 text-xs font-medium disabled:opacity-50"
+                  >Add to selected</button>
+                  <button
+                    onClick={() => bulkActionCollectionId && bulkRemoveFromCollection(bulkActionCollectionId)}
+                    disabled={!bulkActionCollectionId}
+                    className="rounded-lg bg-gray-200 dark:bg-zinc-700 text-gray-700 dark:text-gray-200 px-3 py-2 text-xs font-medium disabled:opacity-50"
+                  >Remove from selected</button>
+                  <button onClick={copySelectedPrompts} className="rounded-lg border border-gray-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-xs font-medium text-gray-700 dark:text-gray-200">Copy JSON</button>
+                </div>
+              </div>
+            )}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               {filtered.length === 0 ? (
                 <div className="col-span-full text-center py-16 text-gray-400 dark:text-gray-600">
@@ -731,6 +921,9 @@ function App() {
                   <PromptCard
                     key={p.id}
                     prompt={p}
+                    selected={selectedPromptIds.includes(p.id)}
+                    selectable={true}
+                    onToggleSelect={() => toggleSelectedPrompt(p.id)}
                     onFavorite={() => toggleFavorite(p.id)}
                     onCopy={() => copyPrompt(p.prompt, p.id)}
                     onDelete={() => deletePrompt(p.id)}
@@ -744,8 +937,9 @@ function App() {
         </div>
         <Footer />
         {toast && <Toast message={toast} onClose={() => setToast(null)} />}
-        {sharePrompt && <ShareModal prompt={sharePrompt} onClose={() => setSharePrompt(null)} />}
-        {shareCollection && <ShareCollectionModal collection={shareCollection} prompts={allPrompts} user={user} onClose={() => setShareCollection(null)} />}
+        {showMyShares && user && <MySharesModal user={user} onClose={() => setShowMyShares(false)} showToast={showToast} />}
+        {sharePrompt && <ShareModal prompt={sharePrompt} onClose={() => setSharePrompt(null)} user={user} showToast={showToast} onRevoke={revokeSharedDoc} />}
+        {shareCollection && <ShareCollectionModal collection={shareCollection} prompts={allPrompts} user={user} onClose={() => setShareCollection(null)} showToast={showToast} onRevoke={revokeSharedDoc} />}
         {incomingSharedPrompt && <SharedPromptModal prompt={incomingSharedPrompt} onImport={importSharedPrompt} onClose={dismissSharedPrompt} />}
         {incomingSharedCollection && <SharedPromptModal prompt={{ title: incomingSharedCollection.name, prompt: `${incomingSharedCollection.prompts.map(p => p.title).join('\n')}`, category: 'Collection', tags: [] }} onImport={() => importSharedCollection(incomingSharedCollection)} onClose={dismissSharedCollection} />}
         {showTrash && <TrashModal deletedPrompts={userPrompts.filter(p => p.deleted)} onRestore={restorePrompt} onPurge={purgePrompt} onClose={() => setShowTrash(false)} />}
