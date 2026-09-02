@@ -26,10 +26,10 @@ jobs:
       - name: Serve dist
         run: npx http-server ./dist -p 8080 &
 
-      - name: Install Chromium
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y chromium-browser
+      - name: Setup Chrome
+        uses: browser-actions/setup-chrome@v1
+        with:
+          chrome-version: stable
 
       - name: Run Lighthouse (accessibility)
         run: |
@@ -37,7 +37,6 @@ jobs:
             --preset=desktop \
             --only-categories=accessibility \
             --output=json --output-path=lh-accessibility.json \
-            --chrome-path=/usr/bin/chromium-browser \
             --chrome-flags="--no-sandbox --disable-gpu"
 
       - name: Upload report
