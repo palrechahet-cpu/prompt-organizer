@@ -32,12 +32,14 @@ jobs:
           chrome-version: stable
 
       - name: Run Lighthouse (accessibility)
+        env:
+          CHROME_PATH: /opt/hostedtoolcache/setup-chrome/chromium/stable/x64/chrome
         run: |
           npx -y lighthouse "http://127.0.0.1:8080/prompt-organizer/" \
             --preset=desktop \
             --only-categories=accessibility \
             --output=json --output-path=lh-accessibility.json \
-            --chrome-flags="--no-sandbox --disable-gpu"
+            --chrome-flags="--no-sandbox --disable-gpu --headless=new"
 
       - name: Upload report
         uses: actions/upload-artifact@v4
