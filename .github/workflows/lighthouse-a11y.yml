@@ -36,7 +36,7 @@ jobs:
           CHROME_PATH: /opt/hostedtoolcache/setup-chrome/chromium/stable/x64/chrome
         run: |
           # Run Lighthouse and capture stdout JSON (if produced) and stderr into a log
-          npx -y lighthouse "http://127.0.0.1:8080/prompt-organizer/" \
+          npx -y lighthouse "http://127.0.0.1:8080/" \
             --preset=desktop \
             --only-categories=accessibility \
             --output=json --output-path=lh-accessibility.json \
