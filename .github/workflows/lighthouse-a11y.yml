@@ -35,14 +35,18 @@ jobs:
         env:
           CHROME_PATH: /opt/hostedtoolcache/setup-chrome/chromium/stable/x64/chrome
         run: |
+          # Run Lighthouse and capture stdout JSON (if produced) and stderr into a log
           npx -y lighthouse "http://127.0.0.1:8080/prompt-organizer/" \
             --preset=desktop \
             --only-categories=accessibility \
             --output=json --output-path=lh-accessibility.json \
-            --chrome-flags="--no-sandbox --disable-gpu --headless=new"
+            --chrome-flags="--no-sandbox --disable-gpu --headless=new" 2> lh-error.log || true
 
       - name: Upload report
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: lighthouse-accessibility
-          path: lh-accessibility.json
+          path: |
+            lh-accessibility.json
+            lh-error.log
