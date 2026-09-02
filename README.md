@@ -58,6 +58,36 @@ npm install
 npm run dev
 ```
 
+## E2E Flow & Search UX (added)
+
+Quick manual verification steps (share/import, and search behavior):
+
+1. Start the app locally:
+
+```bash
+npm ci
+npm run dev
+```
+
+2. Open the app in your browser and sign in with Google.
+
+3. Create or pick a prompt card and open the Share modal (`Share Prompt`).
+	- Click `Create Link` and confirm the copied short URL looks like `/s/<docId>`.
+
+4. Paste that URL in a new tab — the app should load the shared prompt view and show the import modal.
+	- Try `Add to My Library` and confirm the prompt appears under your library.
+	- Or choose `Save to Collection` (if you have collections) and confirm it lands in the chosen collection.
+
+5. Search behavior check:
+	- Type a search term in the navbar search box.
+	- The results should be ranked by relevance and the main results area should scroll into view automatically.
+
+Notes & Troubleshooting:
+
+- If the copied link falls back to an encoded `share` param, the server-side share doc creation may have failed — check the console or Firestore rules and try again.
+- For automated testing or CI, run `npm run build` and serve `./dist` before running any Lighthouse checks.
+
+
 Visit `http://localhost:5174` in your browser.
 
 ### Build for Production
