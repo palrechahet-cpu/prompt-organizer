@@ -1,19 +1,38 @@
 *** Begin Patch
 *** Update File: src/App.jsx
 @@
--import { useState, useEffect } from 'react'
-+import { useState, useEffect } from 'react'
+-import { collection, doc, setDoc, deleteDoc, onSnapshot, getDocs } from 'firebase/firestore'
++import { collection, doc, setDoc, deleteDoc, onSnapshot, getDocs } from 'firebase/firestore'
++import copyToClipboard from './utils/clipboard'
 @@
--function ShareModal({ prompt, onClose }) {
+-function ShareModal({ prompt, onClose, onCopyText }) {
 -  const [copied, setCopied] = useState(false)
--  const shareUrl = (() => {
--    const encoded = btoa(encodeURIComponent(JSON.stringify({ title: prompt.title, category: prompt.category, prompt: prompt.prompt, tags: prompt.tags })))
+-  const shareUrlInfo = (() => {
+-    const payload = JSON.stringify({ title: prompt.title, category: prompt.category, prompt: prompt.prompt, tags: prompt.tags })
+-    const encoded = btoa(encodeURIComponent(payload))
 -    const url = new URL(window.location.href)
 -    url.search = ''
 -    url.searchParams.set('share', encoded)
--    return url.toString()
+-    return { url: url.toString(), payload }
 -  })()
--  const copyLink = () => { navigator.clipboard.writeText(shareUrl); setCopied(true); setTimeout(() => setCopied(false), 2000) }
+-
+-  const copyLink = async () => {
+-    try {
+-      await navigator.clipboard.writeText(shareUrlInfo.url)
+-      setCopied(true)
+-      setTimeout(() => setCopied(false), 2000)
+-    } catch (err) {
+-      // fallback: copy payload JSON
+-      try {
+-        await onCopyText(shareUrlInfo.payload)
+-        setCopied(true)
+-        setTimeout(() => setCopied(false), 2000)
+-      } catch (e) {
+-        console.error('Copy failed', e)
+-      }
+-    }
+-  }
+-
 -  const handleBackdrop = (e) => { if (e.target === e.currentTarget) onClose() }
 -  return (
 -    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm px-4" onClick={handleBackdrop}>
@@ -27,10 +46,10 @@
 -          <p className="text-gray-400 dark:text-gray-500 text-xs line-clamp-2">{prompt.prompt}</p>
 -        </div>
 -        <div className="flex gap-2 items-center">
--          <input readOnly value={shareUrl} className="flex-1 text-xs bg-gray-50 dark:bg-zinc-800 border border-gray-200 dark:border-zinc-700 rounded-xl px-3 py-2.5 text-gray-500 dark:text-gray-400[...]"
--          <button onClick={copyLink} className={`flex-shrink-0 px-4 py-2.5 rounded-xl text-xs font-semibold transition-all duration-200 active:scale-95 ${copied ? 'bg-green-500 text-white' : 'text[...]`}
+-          <input readOnly value={shareUrlInfo.url} className="flex-1 text-xs bg-gray-50 dark:bg-zinc-800 border border-gray-200 dark:border-zinc-700 rounded-xl px-3 py-2.5 text-gray-500 dark:text-gray-400[...]]" />
+-          <button onClick={copyLink} className={`flex-shrink-0 px-4 py-2.5 rounded-xl text-xs font-semibold transition-all duration-200 active:scale-95 ${copied ? 'bg-green-500 text-white' : 'text[...]`}>Copy</button>
 -        </div>
--        <p className="text-xs text-gray-400 dark:text-gray-600 text-center">Anyone with this link can view and import this prompt.</p>
+-        <p className="text-xs text-gray-400 dark:text-gray-600 text-center">Anyone with this link can view and import this prompt. If the link is too large, the prompt JSON will be copied instead.</p>
 -      </div>
 -    </div>
 -  )
@@ -47,12 +66,13 @@
 +  })()
 +
 +  const copyLink = async () => {
++    // If the URL is too long, skip trying to copy it and copy payload instead
 +    try {
-+      await navigator.clipboard.writeText(shareUrlInfo.url)
++      if (shareUrlInfo.url.length > 2000) throw new Error('URL too long')
++      await copyToClipboard(shareUrlInfo.url)
 +      setCopied(true)
 +      setTimeout(() => setCopied(false), 2000)
 +    } catch (err) {
-+      // fallback: copy payload JSON
 +      try {
 +        await onCopyText(shareUrlInfo.payload)
 +        setCopied(true)
@@ -61,6 +81,20 @@
 +        console.error('Copy failed', e)
 +      }
 +    }
++  }
++
++  const downloadJSON = () => {
++    try {
++      const blob = new Blob([shareUrlInfo.payload], { type: 'application/json' })
++      const href = URL.createObjectURL(blob)
++      const a = document.createElement('a')
++      a.href = href
++      a.download = `${prompt.title.replace(/[^a-z0-9_\-]/gi, '_') || 'prompt'}.json`
++      document.body.appendChild(a)
++      a.click()
++      a.remove()
++      URL.revokeObjectURL(href)
++    } catch (e) { console.error('Download failed', e) }
 +  }
 +
 +  const handleBackdrop = (e) => { if (e.target === e.currentTarget) onClose() }
@@ -76,8 +110,9 @@
 +          <p className="text-gray-400 dark:text-gray-500 text-xs line-clamp-2">{prompt.prompt}</p>
 +        </div>
 +        <div className="flex gap-2 items-center">
-+          <input readOnly value={shareUrlInfo.url} className="flex-1 text-xs bg-gray-50 dark:bg-zinc-800 border border-gray-200 dark:border-zinc-700 rounded-xl px-3 py-2.5 text-gray-500 dark:text-gray-400[...]]" />
-+          <button onClick={copyLink} className={`flex-shrink-0 px-4 py-2.5 rounded-xl text-xs font-semibold transition-all duration-200 active:scale-95 ${copied ? 'bg-green-500 text-white' : 'text[...]`}>Copy</button>
++          <input readOnly value={shareUrlInfo.url} className="flex-1 text-xs bg-gray-50 dark:bg-zinc-800 border border-gray-200 dark:border-zinc-700 rounded-xl px-3 py-2.5 text-gray-500 dark:text-gray-400" />
++          <button onClick={copyLink} className={`flex-shrink-0 px-4 py-2.5 rounded-xl text-xs font-semibold transition-all duration-200 active:scale-95 ${copied ? 'bg-green-500 text-white' : 'bg-[#eef2ff] text-[#1f2937]'}`}>Copy</button>
++          <button onClick={downloadJSON} className="flex-shrink-0 px-3 py-2.5 rounded-xl text-xs font-medium bg-gray-100">Download</button>
 +        </div>
 +        <p className="text-xs text-gray-400 dark:text-gray-600 text-center">Anyone with this link can view and import this prompt. If the link is too large, the prompt JSON will be copied instead.</p>
 +      </div>
