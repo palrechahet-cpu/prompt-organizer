@@ -112,6 +112,7 @@ export default function PromptCard({ prompt, onFavorite, onCopy, onDelete, onSha
   const [showRemixModal, setShowRemixModal] = useState(false)
   const [expanded, setExpanded] = useState(false)
   const [copied, setCopied] = useState(false)
+  const [shareCopied, setShareCopied] = useState(false)
   const [showPreview, setShowPreview] = useState(false)
   const [previewPos, setPreviewPos] = useState({ x: 0, y: 0 })
   const hoverTimer = useRef(null)
@@ -121,10 +122,54 @@ export default function PromptCard({ prompt, onFavorite, onCopy, onDelete, onSha
   const accent = ACCENT_COLORS[config.color] || ACCENT_COLORS.gray
 
   const handleCopy = (e) => {
-    e.stopPropagation()
-    onCopy()
+    e && e.stopPropagation()
+    if (onCopy) {
+      onCopy()
+    } else if (prompt?.prompt) {
+      navigator.clipboard.writeText(prompt.prompt)
+    }
     setCopied(true)
     setTimeout(() => setCopied(false), 2000)
+  }
+
+  const handleShare = async (e) => {
+    e && e.stopPropagation()
+    if (onShare) {
+      try {
+        onShare(prompt)
+        return
+      } catch (err) {
+        // fall through to navigator.share fallback
+        console.error('onShare failed:', err)
+      }
+    }
+
+    const shareUrl = `${window.location.origin}${window.location.pathname}?prompt=${encodeURIComponent(prompt.id || prompt.title)}`
+
+    // Preferred Web Share API
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: prompt.title,
+          text: prompt.prompt?.slice(0, 200),
+          url: shareUrl,
+        })
+        return
+      } catch (err) {
+        // User cancelled or share failed — fallback to copy
+        console.warn('navigator.share failed, falling back to clipboard', err)
+      }
+    }
+
+    // Fallback: copy link
+    try {
+      await navigator.clipboard.writeText(shareUrl)
+      setShareCopied(true)
+      setTimeout(() => setShareCopied(false), 2000)
+    } catch (err) {
+      // final fallback: alert
+      alert('Could not share automatically — please copy the link: ' + shareUrl)
+    }
   }
 
   const smallIconClass = 'h-3.5 w-3.5'
@@ -250,21 +295,21 @@ export default function PromptCard({ prompt, onFavorite, onCopy, onDelete, onSha
                 )}
               </div>
 
-              {/* Compact action buttons: reveal on hover/focus */}
-              <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity duration-150">
+              {/* Action buttons: always visible, compact */}
+              <div className="flex items-center gap-2 transition-opacity duration-150">
                 <button
                   type="button"
                   onClick={(e) => { e.stopPropagation(); handleCopy(e) }}
                   aria-label="Copy prompt"
-                  className="w-10 h-10 flex items-center justify-center rounded-md bg-gray-50 hover:bg-gray-100 text-gray-600"
+                  className="w-9 h-9 flex items-center justify-center rounded-md bg-gray-50 hover:bg-gray-100 text-gray-600"
                 >
-                  ⧉
+                  {copied ? '✓' : '⧉'}
                 </button>
                 <button
                   type="button"
                   onClick={(e) => { e.stopPropagation(); setShowAIModal(true) }}
                   aria-label="Run / Send prompt"
-                  className="w-10 h-10 flex items-center justify-center rounded-md bg-gray-50 hover:bg-gray-100 text-gray-600"
+                  className="w-9 h-9 flex items-center justify-center rounded-md bg-gray-50 hover:bg-gray-100 text-gray-600"
                 >
                   ▶
                 </button>
@@ -272,7 +317,7 @@ export default function PromptCard({ prompt, onFavorite, onCopy, onDelete, onSha
                   type="button"
                   onClick={(e) => { e.stopPropagation(); setShowRemixModal(true) }}
                   aria-label="Edit / Remix prompt"
-                  className="w-10 h-10 flex items-center justify-center rounded-md bg-gray-50 hover:bg-gray-100 text-gray-600"
+                  className="w-9 h-9 flex items-center justify-center rounded-md bg-gray-50 hover:bg-gray-100 text-gray-600"
                 >
                   ✎
                 </button>
@@ -280,15 +325,23 @@ export default function PromptCard({ prompt, onFavorite, onCopy, onDelete, onSha
                   type="button"
                   onClick={(e) => { e.stopPropagation(); onAddToCollection && onAddToCollection() }}
                   aria-label="Add to collection"
-                  className="w-10 h-10 flex items-center justify-center rounded-md bg-gray-50 hover:bg-gray-100 text-gray-600"
+                  className="w-9 h-9 flex items-center justify-center rounded-md bg-gray-50 hover:bg-gray-100 text-gray-600"
                 >
                   ＋
+                </button>
+                <button
+                  onClick={handleShare}
+                  title="Share"
+                  aria-label="Share prompt"
+                  className="w-9 h-9 flex items-center justify-center rounded-md bg-gray-50 hover:bg-gray-100 text-gray-600"
+                >
+                  {shareCopied ? '✓' : '🔗'}
                 </button>
                 {!prompt.builtIn && (
                   <button
                     onClick={(e) => { e.stopPropagation(); onDelete && onDelete() }}
                     aria-label="Delete prompt"
-                    className="w-10 h-10 flex items-center justify-center rounded-md bg-red-50 text-red-500 hover:bg-red-100"
+                    className="w-9 h-9 flex items-center justify-center rounded-md bg-red-50 text-red-500 hover:bg-red-100"
                   >
                     🗑
                   </button>
