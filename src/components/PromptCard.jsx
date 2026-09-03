@@ -217,6 +217,11 @@ export default function PromptCard({ prompt, onFavorite, onCopy, onDelete, onSha
 
   const ariaId = prompt.id || prompt.title.replace(/\s+/g, '-')
 
+  // APPLY TWEAKS: increased minWidth, larger buttons, larger icon size, reduced padding
+  const cardStyle = { minWidth: 300 }
+  const iconStyle = { fontSize: 36 }
+  const buttonSizeClass = 'w-11 h-11'
+
   return (
     <>
       {showAIModal && <SendToAIModal prompt={prompt} onClose={() => setShowAIModal(false)} />}
@@ -233,13 +238,13 @@ export default function PromptCard({ prompt, onFavorite, onCopy, onDelete, onSha
         aria-labelledby={`prompt-title-${ariaId}`}
         aria-describedby={`prompt-desc-${ariaId}`}
         className={`group relative bg-white dark:bg-[#0b0b0b] border border-gray-200 dark:border-white/8 rounded-xl h-28 cursor-pointer overflow-hidden transition-colors duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-orange-400 ${expanded ? 'ring-2 ring-orange-400' : ''}`}
-        style={{ minWidth: 280 }}
+        style={cardStyle}
       >
         {/* Card content: compact productivity-focused layout */}
-        <div className="flex items-start gap-3 px-4 py-3 h-full">
+        <div className="flex items-start gap-2 px-3 py-2 h-full">
           {/* Icon */}
           <div className="flex-shrink-0 w-9 h-9 rounded-md flex items-center justify-center bg-white/0 text-lg" aria-hidden="true">
-            <span role="img" aria-label={prompt.category || 'prompt category'} style={{ fontSize: 20 }}>{config.emoji}</span>
+            <span role="img" aria-label={prompt.category || 'prompt category'} style={iconStyle}>{config.emoji}</span>
           </div>
 
           {/* Main column */}
@@ -295,13 +300,13 @@ export default function PromptCard({ prompt, onFavorite, onCopy, onDelete, onSha
                 )}
               </div>
 
-              {/* Action buttons: always visible, compact */}
+              {/* Action buttons: always visible, larger touch targets */}
               <div className="flex items-center gap-2 transition-opacity duration-150">
                 <button
                   type="button"
                   onClick={(e) => { e.stopPropagation(); handleCopy(e) }}
                   aria-label="Copy prompt"
-                  className="w-9 h-9 flex items-center justify-center rounded-md bg-gray-50 hover:bg-gray-100 text-gray-600"
+                  className={`${buttonSizeClass} flex items-center justify-center rounded-md bg-gray-50 hover:bg-gray-100 text-gray-600`}
                 >
                   {copied ? '✓' : '⧉'}
                 </button>
@@ -309,7 +314,7 @@ export default function PromptCard({ prompt, onFavorite, onCopy, onDelete, onSha
                   type="button"
                   onClick={(e) => { e.stopPropagation(); setShowAIModal(true) }}
                   aria-label="Run / Send prompt"
-                  className="w-9 h-9 flex items-center justify-center rounded-md bg-gray-50 hover:bg-gray-100 text-gray-600"
+                  className={`${buttonSizeClass} flex items-center justify-center rounded-md bg-gray-50 hover:bg-gray-100 text-gray-600`}
                 >
                   ▶
                 </button>
@@ -317,7 +322,7 @@ export default function PromptCard({ prompt, onFavorite, onCopy, onDelete, onSha
                   type="button"
                   onClick={(e) => { e.stopPropagation(); setShowRemixModal(true) }}
                   aria-label="Edit / Remix prompt"
-                  className="w-9 h-9 flex items-center justify-center rounded-md bg-gray-50 hover:bg-gray-100 text-gray-600"
+                  className={`${buttonSizeClass} flex items-center justify-center rounded-md bg-gray-50 hover:bg-gray-100 text-gray-600`}
                 >
                   ✎
                 </button>
@@ -325,7 +330,7 @@ export default function PromptCard({ prompt, onFavorite, onCopy, onDelete, onSha
                   type="button"
                   onClick={(e) => { e.stopPropagation(); onAddToCollection && onAddToCollection() }}
                   aria-label="Add to collection"
-                  className="w-9 h-9 flex items-center justify-center rounded-md bg-gray-50 hover:bg-gray-100 text-gray-600"
+                  className={`${buttonSizeClass} flex items-center justify-center rounded-md bg-gray-50 hover:bg-gray-100 text-gray-600`}
                 >
                   ＋
                 </button>
@@ -333,7 +338,7 @@ export default function PromptCard({ prompt, onFavorite, onCopy, onDelete, onSha
                   onClick={handleShare}
                   title="Share"
                   aria-label="Share prompt"
-                  className="w-9 h-9 flex items-center justify-center rounded-md bg-gray-50 hover:bg-gray-100 text-gray-600"
+                  className={`${buttonSizeClass} flex items-center justify-center rounded-md bg-gray-50 hover:bg-gray-100 text-gray-600`}
                 >
                   {shareCopied ? '✓' : '🔗'}
                 </button>
@@ -341,7 +346,7 @@ export default function PromptCard({ prompt, onFavorite, onCopy, onDelete, onSha
                   <button
                     onClick={(e) => { e.stopPropagation(); onDelete && onDelete() }}
                     aria-label="Delete prompt"
-                    className="w-9 h-9 flex items-center justify-center rounded-md bg-red-50 text-red-500 hover:bg-red-100"
+                    className={`${buttonSizeClass} flex items-center justify-center rounded-md bg-red-50 text-red-500 hover:bg-red-100`}
                   >
                     🗑
                   </button>
