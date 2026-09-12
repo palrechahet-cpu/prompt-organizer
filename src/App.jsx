@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import useFocusTrap from './hooks/useFocusTrap'
 import { onAuthStateChanged, signOut } from 'firebase/auth'
 import { collection, doc, setDoc, deleteDoc, onSnapshot, getDocs, addDoc, getDoc, serverTimestamp } from 'firebase/firestore'
@@ -18,46 +18,7 @@ import LoginPage from './components/LoginPage'
 import OnboardingTour from './components/OnboardingTour'
 import defaultPrompts from './data/prompts'
 import MySharesModal from './components/MyShares'
-
-const THEME_COLORS = {
-  orange: { primary: '#f97316', secondary: '#f59e0b' },
-  blue:   { primary: '#3b82f6', secondary: '#06b6d4' },
-  purple: { primary: '#8b5cf6', secondary: '#a855f7' },
-  green:  { primary: '#22c55e', secondary: '#10b981' },
-  rose:   { primary: '#f43f5e', secondary: '#ec4899' },
-}
-
-function applyTheme(theme) {
-  const c = THEME_COLORS[theme] || THEME_COLORS.orange
-  document.documentElement.style.setProperty('--color-primary', c.primary)
-  document.documentElement.style.setProperty('--color-secondary', c.secondary)
-}
-
-function buildShareUrl(type, id) {
-  const url = new URL(window.location.href)
-  url.search = ''
-  url.hash = ''
-  const base = (import.meta.env.BASE_URL || '/').replace(/\/+$/, '') || '/'
-  const route = `${base === '/' ? '' : base}/${type === 'prompt' ? 's' : 'c'}/${id}`.replace(/\/+/g, '/')
-  url.pathname = route
-  return url.toString()
-}
-
-function getRouteShareMeta() {
-  const pathname = decodeURIComponent(window.location.pathname || '/')
-  const match = pathname.match(/(?:^|\/)([sc])\/([^/]+)$/)
-  if (!match) return null
-  return { type: match[1] === 's' ? 'prompt' : 'collection', id: match[2] }
-}
-
-function resetShareUrl() {
-  const url = new URL(window.location.href)
-  url.search = ''
-  url.hash = ''
-  const base = (import.meta.env.BASE_URL || '/').replace(/\/+$/, '') || '/'
-  url.pathname = base === '/' ? '/' : base
-  window.history.replaceState({}, '', url.toString())
-}
+import { THEME_COLORS, applyTheme, buildShareUrl, getRouteShareMeta, resetShareUrl, SEVEN_DAYS_MS, MAX_RECENTLY_VIEWED, LoadingSpinner, EmptySearchState, SearchBestMatch } from './utils/helpers'
 
 function ShareModal({ prompt, onClose, user, onRevoke, showToast }) {
   const modalRef = useRef(null)
@@ -354,11 +315,11 @@ function App() {
   const [activeCategory, setActiveCategory] = useState('All')
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false)
   const [toast, setToast] = useState(null)
-  const showToast = (payload) => {
+  const showToast = useCallback((payload) => {
     const t = typeof payload === 'string' ? { message: payload } : payload || { message: '' }
     setToast(t)
     setTimeout(() => setToast(null), 3000)
-  }
+  }, [])
 
   const revokeSharedDoc = async (type, id) => {
     if (!window.confirm('Revoke this shared item? This will disable the link for others.')) return
@@ -401,10 +362,9 @@ function App() {
       setUserPrompts(loaded)
       // Auto-purge prompts that have been in Trash > 7 days
       const now = Date.now()
-      const sevenDays = 7 * 24 * 60 * 60 * 1000
       snapshot.docs.forEach(d => {
         const data = d.data()
-        if (data && data.deleted && data.deletedAt && (now - data.deletedAt) > sevenDays) {
+        if (data && data.deleted && data.deletedAt && (now - data.deletedAt) > SEVEN_DAYS_MS) {
           // permanently delete
           deleteDoc(doc(db, 'users', user.uid, 'prompts', d.id)).catch(err => console.error('Auto-purge error', err))
         }
@@ -546,15 +506,15 @@ function App() {
     await setDoc(ref, { [String(promptId)]: current + 1 }, { merge: true })
   }
 
-  const trackRecentlyViewed = (promptId) => {
+  const trackRecentlyViewed = useCallback((promptId) => {
     if (!promptId) return
     setRecentlyViewed(prev => {
       const filtered = prev.filter(id => String(id) !== String(promptId))
-      const updated = [String(promptId), ...filtered].slice(0, 5)
+      const updated = [String(promptId), ...filtered].slice(0, MAX_RECENTLY_VIEWED)
       localStorage.setItem('recentlyViewed', JSON.stringify(updated))
       return updated
     })
-  }
+  }, [])
 
   const handleThemeChange = async (theme) => {
     setCurrentTheme(theme)
@@ -814,50 +774,54 @@ function App() {
     resetShareUrl()
   }
 
-  const allPrompts = [
+  const allPrompts = useMemo(() => [
     ...defaultPrompts.map(p => ({ ...p, favorite: !!favorites[String(p.id)] })),
     ...userPrompts.filter(p => !p.deleted)
-  ]
+  ], [defaultPrompts, userPrompts, favorites])
 
-  const allCategories = ['All', ...new Set([...allPrompts.map(p => p.category), ...userCategories])]
+  const allCategories = useMemo(() => 
+    ['All', ...new Set([...allPrompts.map(p => p.category), ...userCategories])]
+  , [allPrompts, userCategories])
 
-  const normalizedSearch = search.trim().toLowerCase()
-  const filtered = allPrompts
-    .filter(p => {
-      const lowerTitle = (p.title || '').toLowerCase()
-      const lowerPrompt = (p.prompt || '').toLowerCase()
-      const lowerCategory = (p.category || '').toLowerCase()
-      const lowerTags = (p.tags || []).map(tag => String(tag).toLowerCase())
-      const matchesSearch = !normalizedSearch || lowerTitle.includes(normalizedSearch) || lowerPrompt.includes(normalizedSearch) || lowerCategory.includes(normalizedSearch) || lowerTags.some(tag => tag.includes(normalizedSearch))
-      const matchesCategory = activeCategory === 'All' || p.category === activeCategory
-      const matchesFav = !showFavoritesOnly || p.favorite
-      const matchesCollection = !activeCollection || p.collections?.includes(activeCollection.id)
-      return matchesSearch && matchesCategory && matchesFav && matchesCollection
-    })
-    .map(p => {
-      if (!normalizedSearch) return { item: p, score: 0 }
+  const filtered = useMemo(() => {
+    const normalizedSearch = search.trim().toLowerCase()
+    return allPrompts
+      .filter(p => {
+        const lowerTitle = (p.title || '').toLowerCase()
+        const lowerPrompt = (p.prompt || '').toLowerCase()
+        const lowerCategory = (p.category || '').toLowerCase()
+        const lowerTags = (p.tags || []).map(tag => String(tag).toLowerCase())
+        const matchesSearch = !normalizedSearch || lowerTitle.includes(normalizedSearch) || lowerPrompt.includes(normalizedSearch) || lowerCategory.includes(normalizedSearch) || lowerTags.some(tag => tag.includes(normalizedSearch))
+        const matchesCategory = activeCategory === 'All' || p.category === activeCategory
+        const matchesFav = !showFavoritesOnly || p.favorite
+        const matchesCollection = !activeCollection || p.collections?.includes(activeCollection.id)
+        return matchesSearch && matchesCategory && matchesFav && matchesCollection
+      })
+      .map(p => {
+        if (!normalizedSearch) return { item: p, score: 0 }
 
-      const lowerTitle = (p.title || '').toLowerCase()
-      const lowerPrompt = (p.prompt || '').toLowerCase()
-      const lowerCategory = (p.category || '').toLowerCase()
-      const lowerTags = (p.tags || []).map(tag => String(tag).toLowerCase())
+        const lowerTitle = (p.title || '').toLowerCase()
+        const lowerPrompt = (p.prompt || '').toLowerCase()
+        const lowerCategory = (p.category || '').toLowerCase()
+        const lowerTags = (p.tags || []).map(tag => String(tag).toLowerCase())
 
-      let score = 0
-      if (lowerTitle === normalizedSearch) score += 200
-      if (lowerTitle.includes(normalizedSearch)) score += 100
-      if (lowerPrompt.includes(normalizedSearch)) score += 60
-      if (lowerCategory === normalizedSearch) score += 80
-      if (lowerCategory.includes(normalizedSearch)) score += 40
-      if (lowerTags.some(tag => tag === normalizedSearch)) score += 80
-      if (lowerTags.some(tag => tag.includes(normalizedSearch))) score += 30
+        let score = 0
+        if (lowerTitle === normalizedSearch) score += 200
+        if (lowerTitle.includes(normalizedSearch)) score += 100
+        if (lowerPrompt.includes(normalizedSearch)) score += 60
+        if (lowerCategory === normalizedSearch) score += 80
+        if (lowerCategory.includes(normalizedSearch)) score += 40
+        if (lowerTags.some(tag => tag === normalizedSearch)) score += 80
+        if (lowerTags.some(tag => tag.includes(normalizedSearch))) score += 30
 
-      return { item: p, score }
-    })
-    .sort((a, b) => {
-      if (!normalizedSearch) return 0
-      return b.score - a.score
-    })
-    .map(entry => entry.item)
+        return { item: p, score }
+      })
+      .sort((a, b) => {
+        if (!normalizedSearch) return 0
+        return b.score - a.score
+      })
+      .map(entry => entry.item)
+  }, [allPrompts, search, activeCategory, showFavoritesOnly, activeCollection])
 
   // When the user types a search, bring the results into view so they
   // don't have to manually scroll down to find matches.
@@ -893,14 +857,7 @@ function App() {
   }, [])
 
   if (authLoading) {
-    return (
-      <div className="min-h-screen bg-gray-50 dark:bg-black flex items-center justify-center">
-        <div className="flex flex-col items-center gap-3">
-          <span className="text-4xl animate-bounce">🎯</span>
-          <p className="text-gray-400 text-sm">Loading...</p>
-        </div>
-      </div>
-    )
+    return <LoadingSpinner />
   }
 
   if (!user) return <LoginPage />
@@ -998,29 +955,15 @@ function App() {
             )}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               {filtered.length === 0 ? (
-                <div className="col-span-full text-center py-16 text-gray-400 dark:text-gray-600">
-                  <p className="text-4xl mb-3">🔍</p>
-                  <p className="text-lg font-medium">No prompts found</p>
-                  <p className="text-sm">Try a different search or category</p>
-                </div>
+                <EmptySearchState />
               ) : (
                 <>
                   {search && filtered.length > 0 && (
-                    <div className="col-span-full">
-                      <div className="sticky top-20 bg-white dark:bg-zinc-900 border border-gray-100 dark:border-zinc-800 rounded-2xl p-4 mb-4 shadow-md">
-                        <div className="flex items-start gap-4">
-                          <div className="flex-1">
-                            <p className="text-xs text-gray-400">Best Match</p>
-                            <p className="font-semibold text-gray-900 dark:text-white">{filtered[0].title}</p>
-                            <p className="text-xs text-gray-400 line-clamp-2 mt-1">{filtered[0].prompt}</p>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <button onClick={() => copyPrompt(filtered[0].prompt, filtered[0].id)} className="px-3 py-2 bg-gray-100 dark:bg-zinc-800 rounded-lg text-xs">Copy</button>
-                            <button onClick={() => { setCollectionModalPrompt(filtered[0]) }} className="px-3 py-2 bg-orange-500 text-white rounded-lg text-xs">Save to Collection</button>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
+                    <SearchBestMatch 
+                      prompt={filtered[0]} 
+                      onCopy={copyPrompt}
+                      onSaveToCollection={setCollectionModalPrompt}
+                    />
                   )}
 
                   {(search ? filtered.slice(1) : filtered).map(p => (
