@@ -45,7 +45,7 @@ function ChevronIcon({ open = false }) {
   )
 }
 
-export default function Navbar({ search, setSearch, darkMode, setDarkMode, showFavoritesOnly, setShowFavoritesOnly, user, onSignOut, currentTheme, onThemeChange, onDeleteAccount, onOpenTrash, onOpenShares }) {
+export default function Navbar({ search, searchInput, setSearchInput, darkMode, setDarkMode, showFavoritesOnly, setShowFavoritesOnly, user, onSignOut, currentTheme, onThemeChange, onDeleteAccount, onOpenTrash, onOpenShares }) {
   const [mobileSearchOpen, setMobileSearchOpen] = useState(false)
   const [showThemePanel, setShowThemePanel] = useState(false)
   const [showProfileMenu, setShowProfileMenu] = useState(false)
@@ -158,32 +158,34 @@ export default function Navbar({ search, setSearch, darkMode, setDarkMode, showF
 
             <input
               type="text"
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-              placeholder="Search prompts..."
+              value={searchInput}
+              onChange={e => setSearchInput(e.target.value)}
+              placeholder="Search prompts... (Press / to focus)"
               id="global-search-input"
               className="hidden sm:flex flex-1 max-w-md px-4 py-2 rounded-lg border border-[#30363d] bg-[#0f1117] text-gray-200 placeholder-gray-500 text-sm focus:outline-none focus:ring-2 transition"
               style={{ '--tw-ring-color': 'var(--color-primary)' }}
+              aria-label="Search prompts"
             />
 
             {mobileSearchOpen && (
               <input
                 type="text"
-                value={search}
-                onChange={e => setSearch(e.target.value)}
+                value={searchInput}
+                onChange={e => setSearchInput(e.target.value)}
                 placeholder="Search..."
                 autoFocus
                 id="global-search-input-mobile"
                 className="sm:hidden flex-1 px-3 py-2 rounded-lg border border-[#30363d] bg-[#0f1117] text-gray-200 placeholder-gray-500 text-sm focus:outline-none transition"
+                aria-label="Search prompts"
               />
             )}
 
             <div className="flex items-center gap-2">
               {!mobileSearchOpen && (
-                <button onClick={() => setMobileSearchOpen(true)} className="sm:hidden px-3 py-2 text-gray-400 hover:bg-[#21262d] rounded-lg transition">🔍</button>
+                <button onClick={() => setMobileSearchOpen(true)} className="sm:hidden px-3 py-2 text-gray-400 hover:bg-[#21262d] rounded-lg transition" aria-label="Open search">🔍</button>
               )}
               {mobileSearchOpen && (
-                <button onClick={() => { setMobileSearchOpen(false); setSearch('') }} className="sm:hidden px-3 py-2 text-gray-400 hover:bg-[#21262d] rounded-lg transition">✕</button>
+                <button onClick={() => { setMobileSearchOpen(false); setSearchInput('') }} className="sm:hidden px-3 py-2 text-gray-400 hover:bg-[#21262d] rounded-lg transition" aria-label="Close search">✕</button>
               )}
 
               <button

@@ -18,7 +18,7 @@ import LoginPage from './components/LoginPage'
 import OnboardingTour from './components/OnboardingTour'
 import defaultPrompts from './data/prompts'
 import MySharesModal from './components/MyShares'
-import { THEME_COLORS, applyTheme, buildShareUrl, getRouteShareMeta, resetShareUrl, SEVEN_DAYS_MS, MAX_RECENTLY_VIEWED, LoadingSpinner, EmptySearchState, SearchBestMatch } from './utils/helpers'
+import { THEME_COLORS, applyTheme, buildShareUrl, getRouteShareMeta, resetShareUrl, SEVEN_DAYS_MS, MAX_RECENTLY_VIEWED, SEARCH_DEBOUNCE_MS, LoadingSpinner, EmptySearchState, SearchBestMatch, SearchResultCount, SkeletonCard, highlightMatch } from './components/Helpers'
 
 function ShareModal({ prompt, onClose, user, onRevoke, showToast }) {
   const modalRef = useRef(null)
@@ -312,6 +312,7 @@ function App() {
     return saved
   })
   const [search, setSearch] = useState('')
+  const [searchInput, setSearchInput] = useState('') // For debounced input
   const [activeCategory, setActiveCategory] = useState('All')
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false)
   const [toast, setToast] = useState(null)
@@ -320,6 +321,14 @@ function App() {
     setToast(t)
     setTimeout(() => setToast(null), 3000)
   }, [])
+
+  // Debounce search input
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setSearch(searchInput)
+    }, SEARCH_DEBOUNCE_MS)
+    return () => clearTimeout(timer)
+  }, [searchInput])
 
   const revokeSharedDoc = async (type, id) => {
     if (!window.confirm('Revoke this shared item? This will disable the link for others.')) return
@@ -867,7 +876,8 @@ function App() {
       <div className="min-h-screen bg-gray-50 dark:bg-black transition-colors duration-300">
         <Navbar
           search={search}
-          setSearch={setSearch}
+          searchInput={searchInput}
+          setSearchInput={setSearchInput}
           darkMode={darkMode}
           setDarkMode={handleDarkModeChange}
           showFavoritesOnly={showFavoritesOnly}
@@ -953,9 +963,10 @@ function App() {
                 </div>
               </div>
             )}
+            <SearchResultCount count={filtered.length} total={allPrompts.length} query={search} />
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               {filtered.length === 0 ? (
-                <EmptySearchState />
+                <EmptySearchState query={search} />
               ) : (
                 <>
                   {search && filtered.length > 0 && (
@@ -963,6 +974,7 @@ function App() {
                       prompt={filtered[0]} 
                       onCopy={copyPrompt}
                       onSaveToCollection={setCollectionModalPrompt}
+                      query={search}
                     />
                   )}
 
@@ -978,6 +990,8 @@ function App() {
                       onDelete={() => deletePrompt(p.id)}
                       onShare={() => setSharePrompt(p)}
                       onAddToCollection={() => setCollectionModalPrompt(p)}
+                      searchQuery={search}
+                      highlightMatch={highlightMatch}
                     />
                   ))}
                 </>

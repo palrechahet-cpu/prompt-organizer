@@ -107,7 +107,7 @@ const CATEGORY_CONFIG = {
   'Social Media':     { color: 'rose',    emoji: '📱' },
 }
 
-export default function PromptCard({ prompt, onFavorite, onCopy, onDelete, onShare, onAddToCollection, selectable = false, selected = false, onToggleSelect }) {
+export default function PromptCard({ prompt, onFavorite, onCopy, onDelete, onShare, onAddToCollection, selectable = false, selected = false, onToggleSelect, searchQuery = '', highlightMatch }) {
   const [showAIModal, setShowAIModal] = useState(false)
   const [showRemixModal, setShowRemixModal] = useState(false)
   const [expanded, setExpanded] = useState(false)
@@ -158,7 +158,7 @@ export default function PromptCard({ prompt, onFavorite, onCopy, onDelete, onSha
 
       setPreviewPos({ x, y })
       setShowPreview(true)
-    }, 600)
+    }, 400) // Reduced from 600ms for faster feedback
   }
 
   const handleMouseLeave = () => {
@@ -211,7 +211,7 @@ export default function PromptCard({ prompt, onFavorite, onCopy, onDelete, onSha
           <div className="flex items-start justify-between gap-2">
             <div className="flex-1 min-w-0">
               <h3 className="font-semibold text-gray-900 dark:text-white/90 text-sm leading-snug truncate pr-2">
-                {prompt.title}
+                {searchQuery && highlightMatch ? highlightMatch(prompt.title, searchQuery) : prompt.title}
               </h3>
               <div className="flex items-center gap-1.5 mt-1">
                 <div className={`w-1 h-1 rounded-full ${accent.cls} opacity-70`} />
@@ -222,7 +222,7 @@ export default function PromptCard({ prompt, onFavorite, onCopy, onDelete, onSha
               <button
                 type="button"
                 onClick={(e) => { e.stopPropagation(); onFavorite() }}
-                className="w-6 h-6 flex items-center justify-center rounded-md transition-all duration-150 text-sm hover:scale-110"
+                className="w-6 h-6 flex items-center justify-center rounded-md transition-all duration-150 text-sm hover:scale-110 focus:outline-none focus:ring-2 focus:ring-offset-1 dark:focus:ring-offset-zinc-900"
                 style={prompt.favorite ? { color: 'var(--color-primary)' } : { color: 'rgba(156,163,175,0.3)' }}
                 aria-label={prompt.favorite ? 'Unfavorite' : 'Favorite'}
                 aria-pressed={prompt.favorite ? 'true' : 'false'}
@@ -239,7 +239,7 @@ export default function PromptCard({ prompt, onFavorite, onCopy, onDelete, onSha
 
           {/* Prompt text */}
           <p className={`text-gray-400 dark:text-gray-500 text-xs leading-relaxed transition-all duration-300 ${expanded ? '' : 'line-clamp-3'}`}>
-            {prompt.prompt}
+            {searchQuery && highlightMatch ? highlightMatch(prompt.prompt, searchQuery) : prompt.prompt}
           </p>
 
           {/* Tags */}
