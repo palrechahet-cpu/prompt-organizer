@@ -5,7 +5,6 @@ import { collection, doc, setDoc, deleteDoc, onSnapshot, getDocs, addDoc, getDoc
 import { auth, db } from './firebase'
 import Navbar from './components/Navbar'
 import HeroSection from './components/HeroSection'
-import FeaturedSection from './components/FeaturedSection'
 import SmartSection from './components/SmartSection'
 import CategoriesSection from './components/CategoriesSection'
 import AddPromptForm from './components/AddPromptForm'
@@ -945,7 +944,7 @@ function App() {
 
   return (
     <div className={darkMode ? 'dark' : ''}>
-      <div className="min-h-screen bg-gray-50 dark:bg-black transition-colors duration-300">
+      <div className="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(249,115,22,0.08),_transparent_30%),linear-gradient(to_bottom,_#f8fafc_0%,_#eef2ff_100%)] dark:bg-[radial-gradient(circle_at_top,_rgba(249,115,22,0.12),_transparent_30%),linear-gradient(to_bottom,_#09090b_0%,_#111827_100%)] transition-colors duration-300">
         <Navbar
           search={search}
           setSearch={setSearch}
@@ -1020,14 +1019,6 @@ function App() {
               allPrompts={allPrompts}
               recentlyViewed={recentlyViewed}
               onCopy={(text, id) => copyPrompt(text, id)}
-              onFavorite={toggleFavorite}
-              onDelete={deletePrompt}
-              onShare={(p) => setSharePrompt(p)}
-              onAddToCollection={(p) => setCollectionModalPrompt(p)}
-            />
-            <FeaturedSection
-              prompts={allPrompts}
-              onCopy={(text) => copyPrompt(text)}
               onFavorite={toggleFavorite}
               onDelete={deletePrompt}
               onShare={(p) => setSharePrompt(p)}
