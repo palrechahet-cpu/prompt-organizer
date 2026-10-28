@@ -18,6 +18,7 @@ import LoginPage from './components/LoginPage'
 import OnboardingTour from './components/OnboardingTour'
 import defaultPrompts from './data/prompts'
 import MySharesModal from './components/MyShares'
+import { buildShareUrl, copyTextToClipboard, getRouteShareMeta, resetShareUrl } from './shareLinks'
 
 const THEME_COLORS = {
   orange: { primary: '#f97316', secondary: '#f59e0b' },
@@ -33,32 +34,6 @@ function applyTheme(theme) {
   document.documentElement.style.setProperty('--color-secondary', c.secondary)
 }
 
-function buildShareUrl(type, id) {
-  const url = new URL(window.location.href)
-  url.search = ''
-  url.hash = ''
-  const base = (import.meta.env.BASE_URL || '/').replace(/\/+$/, '') || '/'
-  const route = `${base === '/' ? '' : base}/${type === 'prompt' ? 's' : 'c'}/${id}`.replace(/\/+/g, '/')
-  url.pathname = route
-  return url.toString()
-}
-
-function getRouteShareMeta() {
-  const pathname = decodeURIComponent(window.location.pathname || '/')
-  const match = pathname.match(/(?:^|\/)([sc])\/([^/]+)$/)
-  if (!match) return null
-  return { type: match[1] === 's' ? 'prompt' : 'collection', id: match[2] }
-}
-
-function resetShareUrl() {
-  const url = new URL(window.location.href)
-  url.search = ''
-  url.hash = ''
-  const base = (import.meta.env.BASE_URL || '/').replace(/\/+$/, '') || '/'
-  url.pathname = base === '/' ? '/' : base
-  window.history.replaceState({}, '', url.toString())
-}
-
 function ShareModal({ prompt, onClose, user, onRevoke, showToast }) {
   const modalRef = useRef(null)
   useFocusTrap(modalRef, onClose)
@@ -72,7 +47,19 @@ function ShareModal({ prompt, onClose, user, onRevoke, showToast }) {
 
   const handleBackdrop = (e) => { if (e.target === e.currentTarget) onClose() }
 
-  const createSharedLink = async () => {
+  const copyLink = async (link) => {
+    try {
+      await copyTextToClipboard(link)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    } catch (err) {
+      console.error('copy prompt share link error', err)
+      showToast?.({ message: 'Link is ready. Select it and copy manually.', type: 'error' })
+    }
+  }
+
+  const handleShareLink = async () => {
+    if (shareUrl) { await copyLink(shareUrl); return }
     setCreating(true)
     try {
       const payload = { title: prompt.title, category: prompt.category, prompt: prompt.prompt, tags: prompt.tags || [], visibility, active: true, createdAt: Date.now() }
@@ -82,14 +69,13 @@ function ShareModal({ prompt, onClose, user, onRevoke, showToast }) {
       setShareOwnerId(payload.ownerId || null)
       const link = buildShareUrl('prompt', ref.id)
       setShareUrl(link)
-      await navigator.clipboard.writeText(link)
-      setCopied(true)
-      setTimeout(() => setCopied(false), 2000)
+      await copyLink(link)
     } catch (err) {
       console.error('createSharedLink error', err)
       showToast?.({ message: 'Could not create a share link right now.', type: 'error' })
+    } finally {
+      setCreating(false)
     }
-    setCreating(false)
   }
 
   return (
@@ -107,11 +93,12 @@ function ShareModal({ prompt, onClose, user, onRevoke, showToast }) {
           <div className="flex items-center gap-3">
             <label className="text-xs font-semibold">Visibility</label>
             <div className="flex items-center gap-2 text-xs">
-              <label className="inline-flex items-center gap-2"><input type="radio" name="vis" value="private" checked={visibility==='private'} onChange={() => setVisibility('private')} /> Private</label>
-              <label className="inline-flex items-center gap-2"><input type="radio" name="vis" value="anyone" checked={visibility==='anyone'} onChange={() => setVisibility('anyone')} /> Anyone with link</label>
-              <label className="inline-flex items-center gap-2"><input type="radio" name="vis" value="public" checked={visibility==='public'} onChange={() => setVisibility('public')} /> Public</label>
+              <label className="inline-flex items-center gap-2"><input type="radio" name="vis" value="private" checked={visibility==='private'} disabled={!!shareUrl} onChange={() => setVisibility('private')} /> Private</label>
+              <label className="inline-flex items-center gap-2"><input type="radio" name="vis" value="anyone" checked={visibility==='anyone'} disabled={!!shareUrl} onChange={() => setVisibility('anyone')} /> Anyone with link</label>
+              <label className="inline-flex items-center gap-2"><input type="radio" name="vis" value="public" checked={visibility==='public'} disabled={!!shareUrl} onChange={() => setVisibility('public')} /> Public</label>
             </div>
           </div>
+          {visibility === 'private' && <p className="text-xs text-amber-600">Private links cannot be shared. Choose “Anyone with link” or “Public” to create one.</p>}
           {visibility === 'public' && (
             <div className="flex items-center gap-2 text-xs">
               <input type="checkbox" checked={consentPublic} onChange={e => setConsentPublic(e.target.checked)} />
@@ -119,8 +106,8 @@ function ShareModal({ prompt, onClose, user, onRevoke, showToast }) {
             </div>
           )}
           <div className="flex gap-2 items-center">
-            <input readOnly value={shareUrl} placeholder="Create a persistent link" className="flex-1 text-xs bg-gray-50 dark:bg-zinc-800 border border-gray-200 dark:border-zinc-700 rounded-xl px-3 py-2.5 text-gray-500 dark:text-gray-400 truncate focus:outline-none" />
-            <button onClick={createSharedLink} disabled={creating || (visibility==='public' && !consentPublic)} className={`flex-shrink-0 px-4 py-2.5 rounded-xl text-xs font-semibold transition-all duration-200 active:scale-95 ${copied ? 'bg-green-500 text-white' : 'text-white shadow-sm'}`} style={{ backgroundColor: copied ? undefined : 'var(--color-primary)' }}>{copied ? '✓ Copied!' : (creating ? 'Creating...' : 'Create Link')}</button>
+            <input readOnly value={shareUrl} onClick={e => e.currentTarget.select()} placeholder="Create a persistent link" className="min-w-0 flex-1 text-xs bg-gray-50 dark:bg-zinc-800 border border-gray-200 dark:border-zinc-700 rounded-xl px-3 py-2.5 text-gray-500 dark:text-gray-400 truncate focus:outline-none" />
+            <button onClick={handleShareLink} disabled={creating || (!shareUrl && visibility === 'private') || (visibility==='public' && !consentPublic)} className={`flex-shrink-0 px-4 py-2.5 rounded-xl text-xs font-semibold transition-all duration-200 active:scale-95 ${copied ? 'bg-green-500 text-white' : 'text-white shadow-sm'}`} style={{ backgroundColor: copied ? undefined : 'var(--color-primary)' }}>{creating ? 'Creating...' : copied ? '✓ Copied!' : shareUrl ? 'Copy Link' : 'Create Link'}</button>
             {shareDocId && shareOwnerId && user && shareOwnerId === user.uid && (
               <button onClick={async () => { await onRevoke('prompt', shareDocId); setShareUrl('') }} className="ml-2 px-3 py-2 rounded-lg bg-red-500 text-white text-xs">Revoke</button>
             )}
@@ -132,7 +119,7 @@ function ShareModal({ prompt, onClose, user, onRevoke, showToast }) {
   )
 }
 
-function ShareCollectionModal({ collection, prompts, user, onClose, onRevoke, showToast }) {
+function ShareCollectionModal({ sharedCollection, prompts, user, onClose, onRevoke, showToast }) {
   const modalRef = useRef(null)
   useFocusTrap(modalRef, onClose)
   const [copied, setCopied] = useState(false)
@@ -143,18 +130,30 @@ function ShareCollectionModal({ collection, prompts, user, onClose, onRevoke, sh
   const [shareDocId, setShareDocId] = useState('')
   const [shareOwnerId, setShareOwnerId] = useState(null)
 
-  const createSharedCollection = async () => {
+  const copyLink = async (link) => {
+    try {
+      await copyTextToClipboard(link)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    } catch (err) {
+      console.error('copy collection share link error', err)
+      showToast?.({ message: 'Link is ready. Select it and copy manually.', type: 'error' })
+    }
+  }
+
+  const handleShareLink = async () => {
+    if (shareUrl) { await copyLink(shareUrl); return }
     setCreating(true)
     try {
       const payload = {
-        name: collection.name,
-        emoji: collection.emoji,
+        name: sharedCollection.name,
+        emoji: sharedCollection.emoji,
         ownerId: user ? user.uid : null,
         ownerName: user ? user.displayName : null,
         ownerPhoto: user ? user.photoURL : null,
         visibility,
         active: true,
-        prompts: prompts.filter(p => p.collections?.includes(collection.id)).map(p => ({ title: p.title, prompt: p.prompt, category: p.category, tags: p.tags || [] })),
+        prompts: prompts.filter(p => p.collections?.includes(sharedCollection.id)).map(p => ({ title: p.title, prompt: p.prompt, category: p.category, tags: p.tags || [] })),
         createdAt: Date.now()
       }
       const ref = await addDoc(collection(db, 'sharedCollections'), payload)
@@ -162,14 +161,13 @@ function ShareCollectionModal({ collection, prompts, user, onClose, onRevoke, sh
       setShareOwnerId(payload.ownerId || null)
       const link = buildShareUrl('collection', ref.id)
       setShareUrl(link)
-      await navigator.clipboard.writeText(link)
-      setCopied(true)
-      setTimeout(() => setCopied(false), 2000)
+      await copyLink(link)
     } catch (err) {
       console.error('createSharedCollection error', err)
       showToast?.({ message: 'Could not create a collection share link.', type: 'error' })
+    } finally {
+      setCreating(false)
     }
-    setCreating(false)
   }
 
   const handleBackdrop = (e) => { if (e.target === e.currentTarget) onClose() }
@@ -182,18 +180,19 @@ function ShareCollectionModal({ collection, prompts, user, onClose, onRevoke, sh
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 text-xl leading-none transition-colors">✕</button>
         </div>
         <div className="bg-gray-50 dark:bg-zinc-800 rounded-xl p-4 border border-gray-100 dark:border-zinc-700">
-          <p className="font-semibold text-gray-800 dark:text-white text-sm mb-1">{collection.name}</p>
-          <p className="text-gray-400 dark:text-gray-500 text-xs">Includes {prompts.filter(p => p.collections?.includes(collection.id)).length} prompts</p>
+          <p className="font-semibold text-gray-800 dark:text-white text-sm mb-1">{sharedCollection.name}</p>
+          <p className="text-gray-400 dark:text-gray-500 text-xs">Includes {prompts.filter(p => p.collections?.includes(sharedCollection.id)).length} prompts</p>
         </div>
         <div className="flex flex-col gap-2">
           <div className="flex items-center gap-3">
             <label className="text-xs font-semibold">Visibility</label>
             <div className="flex items-center gap-2 text-xs">
-              <label className="inline-flex items-center gap-2"><input type="radio" name="col-vis" value="private" checked={visibility==='private'} onChange={() => setVisibility('private')} /> Private</label>
-              <label className="inline-flex items-center gap-2"><input type="radio" name="col-vis" value="anyone" checked={visibility==='anyone'} onChange={() => setVisibility('anyone')} /> Anyone with link</label>
-              <label className="inline-flex items-center gap-2"><input type="radio" name="col-vis" value="public" checked={visibility==='public'} onChange={() => setVisibility('public')} /> Public</label>
+              <label className="inline-flex items-center gap-2"><input type="radio" name="col-vis" value="private" checked={visibility==='private'} disabled={!!shareUrl} onChange={() => setVisibility('private')} /> Private</label>
+              <label className="inline-flex items-center gap-2"><input type="radio" name="col-vis" value="anyone" checked={visibility==='anyone'} disabled={!!shareUrl} onChange={() => setVisibility('anyone')} /> Anyone with link</label>
+              <label className="inline-flex items-center gap-2"><input type="radio" name="col-vis" value="public" checked={visibility==='public'} disabled={!!shareUrl} onChange={() => setVisibility('public')} /> Public</label>
             </div>
           </div>
+          {visibility === 'private' && <p className="text-xs text-amber-600">Private links cannot be shared. Choose “Anyone with link” or “Public” to create one.</p>}
           {visibility === 'public' && (
             <div className="flex items-center gap-2 text-xs">
               <input type="checkbox" checked={consentPublic} onChange={e => setConsentPublic(e.target.checked)} />
@@ -201,8 +200,8 @@ function ShareCollectionModal({ collection, prompts, user, onClose, onRevoke, sh
             </div>
           )}
           <div className="flex gap-2 items-center">
-            <input readOnly value={shareUrl} placeholder="Create a persistent link" className="flex-1 text-xs bg-gray-50 dark:bg-zinc-800 border border-gray-200 dark:border-zinc-700 rounded-xl px-3 py-2.5 text-gray-500 dark:text-gray-400 truncate focus:outline-none" />
-            <button onClick={createSharedCollection} disabled={creating || (visibility==='public' && !consentPublic)} className={`flex-shrink-0 px-4 py-2.5 rounded-xl text-xs font-semibold transition-all duration-200 active:scale-95 ${copied ? 'bg-green-500 text-white' : 'text-white shadow-sm'}`} style={{ backgroundColor: copied ? undefined : 'var(--color-primary)' }}>{copied ? '✓ Copied!' : (creating ? 'Creating...' : 'Create Link')}</button>
+            <input readOnly value={shareUrl} onClick={e => e.currentTarget.select()} placeholder="Create a persistent link" className="min-w-0 flex-1 text-xs bg-gray-50 dark:bg-zinc-800 border border-gray-200 dark:border-zinc-700 rounded-xl px-3 py-2.5 text-gray-500 dark:text-gray-400 truncate focus:outline-none" />
+            <button onClick={handleShareLink} disabled={creating || (!shareUrl && visibility === 'private') || (visibility==='public' && !consentPublic)} className={`flex-shrink-0 px-4 py-2.5 rounded-xl text-xs font-semibold transition-all duration-200 active:scale-95 ${copied ? 'bg-green-500 text-white' : 'text-white shadow-sm'}`} style={{ backgroundColor: copied ? undefined : 'var(--color-primary)' }}>{creating ? 'Creating...' : copied ? '✓ Copied!' : shareUrl ? 'Copy Link' : 'Create Link'}</button>
             {shareDocId && shareOwnerId && user && shareOwnerId === user.uid && (
               <button onClick={async () => { await onRevoke('collection', shareDocId); setShareUrl('') }} className="ml-2 px-3 py-2 rounded-lg bg-red-500 text-white text-xs">Revoke</button>
             )}
@@ -214,10 +213,12 @@ function ShareCollectionModal({ collection, prompts, user, onClose, onRevoke, sh
   )
 }
 
-function SharedPromptModal({ prompt, onImport, onClose, collections = [], onSaveToCollection }) {
+function SharedPromptModal({ prompt, sharedCollection, onImport, onClose, collections = [], onSaveToCollection, needsSignIn = false }) {
   const modalRef = useRef(null)
   useFocusTrap(modalRef, onClose)
   const [selectedCollectionId, setSelectedCollectionId] = useState('')
+  const isCollection = !!sharedCollection
+  const sharedItem = sharedCollection || prompt
 
   return (
     <div ref={modalRef} className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm px-4">
@@ -225,26 +226,40 @@ function SharedPromptModal({ prompt, onImport, onClose, collections = [], onSave
         <div className="flex items-center gap-2">
           <span className="text-2xl">🎁</span>
           <div>
-            <h2 className="font-bold text-gray-900 dark:text-white text-lg">Shared Prompt</h2>
-            {prompt.ownerName && (
+            <h2 className="font-bold text-gray-900 dark:text-white text-lg">{isCollection ? 'Shared Collection' : 'Shared Prompt'}</h2>
+            {sharedItem.ownerName && (
               <div className="text-xs text-gray-500 mt-0.5 flex items-center gap-2">
-                {prompt.ownerPhoto && <img src={prompt.ownerPhoto} alt={prompt.ownerName} className="w-5 h-5 rounded-full" />}
-                <span>Shared by {prompt.ownerName}</span>
+                {sharedItem.ownerPhoto && <img src={sharedItem.ownerPhoto} alt={sharedItem.ownerName} className="w-5 h-5 rounded-full" />}
+                <span>Shared by {sharedItem.ownerName}</span>
               </div>
             )}
           </div>
         </div>
-        <p className="text-sm text-gray-500 dark:text-gray-400">Someone shared this prompt with you. Save it to your library or a collection.</p>
-        <div className="bg-gray-50 dark:bg-zinc-800 rounded-xl p-4 border border-gray-100 dark:border-zinc-700 flex flex-col gap-2">
-          <p className="font-semibold text-gray-800 dark:text-white text-sm">{prompt.title}</p>
-          <span className="text-xs font-medium" style={{ color: 'var(--color-primary)' }}>{prompt.category}</span>
-          <p className="text-gray-400 dark:text-gray-500 text-xs leading-relaxed line-clamp-4">{prompt.prompt}</p>
-          {prompt.tags?.length > 0 && (
-            <div className="flex flex-wrap gap-1 mt-1">
-              {prompt.tags.map(tag => (<span key={tag} className="px-2 py-0.5 bg-white dark:bg-zinc-700 text-gray-400 text-xs rounded-lg border border-gray-100 dark:border-zinc-600">#{tag}</span>))}
-            </div>
-          )}
-        </div>
+        <p className="text-sm text-gray-500 dark:text-gray-400">{isCollection ? 'Review the prompts in this collection, then import them to your library.' : 'Save this prompt to your library or a collection.'}</p>
+        {isCollection ? (
+          <div className="max-h-64 overflow-y-auto bg-gray-50 dark:bg-zinc-800 rounded-xl p-4 border border-gray-100 dark:border-zinc-700 flex flex-col gap-3">
+            <p className="font-semibold text-gray-800 dark:text-white text-sm">{sharedCollection.name}</p>
+            {(sharedCollection.prompts || []).length === 0 && <p className="text-xs text-gray-400">This collection has no prompts.</p>}
+            {(sharedCollection.prompts || []).map((item, index) => (
+              <div key={`${item.title}-${index}`} className="border-t border-gray-200 dark:border-zinc-700 pt-3">
+                <p className="font-semibold text-gray-800 dark:text-white text-sm">{item.title}</p>
+                {item.category && <span className="text-xs font-medium" style={{ color: 'var(--color-primary)' }}>{item.category}</span>}
+                <p className="text-gray-500 dark:text-gray-400 text-xs leading-relaxed whitespace-pre-wrap">{item.prompt}</p>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="bg-gray-50 dark:bg-zinc-800 rounded-xl p-4 border border-gray-100 dark:border-zinc-700 flex flex-col gap-2">
+            <p className="font-semibold text-gray-800 dark:text-white text-sm">{prompt.title}</p>
+            <span className="text-xs font-medium" style={{ color: 'var(--color-primary)' }}>{prompt.category}</span>
+            <p className="text-gray-400 dark:text-gray-500 text-xs leading-relaxed line-clamp-4">{prompt.prompt}</p>
+            {prompt.tags?.length > 0 && (
+              <div className="flex flex-wrap gap-1 mt-1">
+                {prompt.tags.map(tag => (<span key={tag} className="px-2 py-0.5 bg-white dark:bg-zinc-700 text-gray-400 text-xs rounded-lg border border-gray-100 dark:border-zinc-600">#{tag}</span>))}
+              </div>
+            )}
+          </div>
+        )}
         {collections.length > 0 && (
           <div className="flex flex-col gap-2">
             <label className="text-xs font-semibold text-gray-600 dark:text-gray-300">Save to collection</label>
@@ -255,7 +270,7 @@ function SharedPromptModal({ prompt, onImport, onClose, collections = [], onSave
           </div>
         )}
         <div className="flex gap-2">
-          <button onClick={onImport} className="flex-1 py-2.5 text-white rounded-xl text-sm font-semibold transition-all duration-200 shadow-sm active:scale-95" style={{ backgroundColor: 'var(--color-primary)' }}>Add to My Library</button>
+          <button onClick={onImport} className="flex-1 py-2.5 text-white rounded-xl text-sm font-semibold transition-all duration-200 shadow-sm active:scale-95" style={{ backgroundColor: 'var(--color-primary)' }}>{needsSignIn ? 'Sign in to import' : isCollection ? 'Import Collection' : 'Add to My Library'}</button>
           <button onClick={() => onSaveToCollection?.(selectedCollectionId)} disabled={!selectedCollectionId} className="flex-1 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200 disabled:opacity-50 bg-gray-100 dark:bg-zinc-800 text-gray-700 dark:text-gray-200">Save to Collection</button>
           <button onClick={onClose} className="py-2.5 px-4 bg-gray-100 dark:bg-zinc-800 hover:bg-gray-200 dark:hover:bg-zinc-700 text-gray-500 dark:text-gray-400 rounded-xl text-sm font-semibold transition-all duration-200 active:scale-95">Dismiss</button>
         </div>
@@ -389,7 +404,7 @@ function App() {
       setAuthLoading(false)
     })
     return () => unsubscribe()
-  }, [])
+  }, [user])
 
   // Load user prompts
   useEffect(() => {
@@ -481,7 +496,7 @@ function App() {
     const shared = params.get('share')
     // eslint-disable-next-line react-hooks/set-state-in-effect
     if (shared) { try { const decoded = JSON.parse(decodeURIComponent(atob(shared))); setIncomingSharedPrompt(decoded) } catch (e) { console.error('decode shared param', e) } }
-  }, [])
+  }, [user])
 
   // Check for persistent shared prompt via path /s/:id
   useEffect(() => {
@@ -502,7 +517,7 @@ function App() {
       }
     }
     tryLoadShared()
-  }, [])
+  }, [user])
 
   // Check for persistent shared collection via path /c/:id
   useEffect(() => {
@@ -523,7 +538,7 @@ function App() {
       }
     }
     tryLoadSharedCollection()
-  }, [])
+  }, [user])
 
   // Sync darkMode
   useEffect(() => {
@@ -760,6 +775,7 @@ function App() {
 
   const importSharedPrompt = () => {
     if (!incomingSharedPrompt) return
+    if (!user) { showToast('Sign in to import this prompt'); return }
     addPrompt(incomingSharedPrompt)
     setIncomingSharedPrompt(null)
     resetShareUrl()
@@ -806,12 +822,12 @@ function App() {
 
   const dismissSharedCollection = () => {
     setIncomingSharedCollection(null)
-    resetShareUrl()
+    if (user) resetShareUrl()
   }
 
   const dismissSharedPrompt = () => {
     setIncomingSharedPrompt(null)
-    resetShareUrl()
+    if (user) resetShareUrl()
   }
 
   const allPrompts = [
@@ -903,7 +919,29 @@ function App() {
     )
   }
 
-  if (!user) return <LoginPage />
+  if (!user) return (
+    <>
+      <LoginPage />
+      {incomingSharedPrompt && (
+        <SharedPromptModal
+          prompt={incomingSharedPrompt}
+          onImport={() => { dismissSharedPrompt(); showToast('Sign in to import this prompt') }}
+          onSaveToCollection={saveSharedPromptToCollection}
+          onClose={dismissSharedPrompt}
+          needsSignIn
+        />
+      )}
+      {incomingSharedCollection && (
+        <SharedPromptModal
+          sharedCollection={incomingSharedCollection}
+          onImport={() => { dismissSharedCollection(); showToast('Sign in to import this collection') }}
+          onClose={dismissSharedCollection}
+          needsSignIn
+        />
+      )}
+      {toast && <Toast message={toast} onClose={() => setToast(null)} />}
+    </>
+  )
 
   return (
     <div className={darkMode ? 'dark' : ''}>
@@ -939,7 +977,44 @@ function App() {
               promptCount={allPrompts.length}
               user={user}
               usageStats={usageStats}
+              favoriteCount={allPrompts.filter(p => p.favorite).length}
+              collectionCount={collections.length}
+              onFavoritesClick={() => { setShowFavoritesOnly(v => !v); setActiveCategory('All') }}
+              onCollectionsClick={() => {
+                setActiveCollection(prev => prev ?? (collections[0] || null))
+                setActiveCategory('All')
+              }}
             />
+
+            <div className="mb-6 grid gap-3 md:grid-cols-3">
+              <button
+                onClick={() => { setActiveCategory('All'); setActiveCollection(null); setShowFavoritesOnly(false) }}
+                className="rounded-2xl border border-gray-200 bg-white p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-orange-300 dark:border-white/8 dark:bg-zinc-900"
+              >
+                <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-gray-400 dark:text-gray-500">Library</p>
+                <p className="mt-2 text-xl font-bold text-gray-900 dark:text-white">All prompts</p>
+                <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">Browse everything in one place.</p>
+              </button>
+
+              <button
+                onClick={() => setShowFavoritesOnly(v => !v)}
+                className="rounded-2xl border border-gray-200 bg-white p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-orange-300 dark:border-white/8 dark:bg-zinc-900"
+              >
+                <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-gray-400 dark:text-gray-500">Quick view</p>
+                <p className="mt-2 text-xl font-bold text-gray-900 dark:text-white">Favorites</p>
+                <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{allPrompts.filter(p => p.favorite).length} starred prompts ready to use.</p>
+              </button>
+
+              <button
+                onClick={() => setShowMyShares(true)}
+                className="rounded-2xl border border-gray-200 bg-white p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-orange-300 dark:border-white/8 dark:bg-zinc-900"
+              >
+                <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-gray-400 dark:text-gray-500">Sharing</p>
+                <p className="mt-2 text-xl font-bold text-gray-900 dark:text-white">My shares</p>
+                <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">Review and revoke shared prompt links.</p>
+              </button>
+            </div>
+
             <SmartSection
               usageStats={usageStats}
               allPrompts={allPrompts}
@@ -1046,7 +1121,7 @@ function App() {
         {toast && <Toast message={toast} onClose={() => setToast(null)} />}
         {showMyShares && user && <MySharesModal user={user} onClose={() => setShowMyShares(false)} showToast={showToast} />}
         {sharePrompt && <ShareModal prompt={sharePrompt} onClose={() => setSharePrompt(null)} user={user} showToast={showToast} onRevoke={revokeSharedDoc} />}
-        {shareCollection && <ShareCollectionModal collection={shareCollection} prompts={allPrompts} user={user} onClose={() => setShareCollection(null)} showToast={showToast} onRevoke={revokeSharedDoc} />}
+        {shareCollection && <ShareCollectionModal sharedCollection={shareCollection} prompts={allPrompts} user={user} onClose={() => setShareCollection(null)} showToast={showToast} onRevoke={revokeSharedDoc} />}
         {incomingSharedPrompt && (
           <SharedPromptModal
             prompt={incomingSharedPrompt}
@@ -1058,7 +1133,7 @@ function App() {
         )}
         {incomingSharedCollection && (
           <SharedPromptModal
-            prompt={{ title: incomingSharedCollection.name, prompt: `${incomingSharedCollection.prompts.map(p => p.title).join('\n')}`, category: 'Collection', tags: [] }}
+            sharedCollection={incomingSharedCollection}
             collections={collections}
             onImport={() => importSharedCollection(incomingSharedCollection)}
             onSaveToCollection={(collectionId) => importSharedCollection(incomingSharedCollection, collectionId)}

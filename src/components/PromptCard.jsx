@@ -195,27 +195,28 @@ export default function PromptCard({ prompt, onFavorite, onCopy, onDelete, onSha
         <div className={`absolute left-0 top-0 bottom-0 w-[3px] ${accent.cls} transition-opacity duration-200 ${expanded ? 'opacity-100' : 'opacity-60 group-hover:opacity-80'}`} />
 
         <div className="pl-5 pr-4 pt-4 pb-4 flex flex-col gap-3">
-          {selectable && (
-            <button
-              type="button"
-              onClick={(e) => { e.stopPropagation(); onToggleSelect && onToggleSelect() }}
-              className={`absolute top-3 left-3 z-10 flex h-6 w-6 items-center justify-center rounded-md border text-xs font-bold ${selected ? 'bg-orange-500 text-white border-orange-500' : 'bg-white/80 dark:bg-zinc-900/80 text-gray-400 border-gray-200 dark:border-zinc-700'}`}
-              aria-label={`Select ${prompt.title}`}
-              aria-pressed={selected ? 'true' : 'false'}
-            >
-              {selected ? '✓' : ''}
-            </button>
-          )}
-
           {/* Header row */}
           <div className="flex items-start justify-between gap-2">
-            <div className="flex-1 min-w-0">
-              <h3 className="font-semibold text-gray-900 dark:text-white/90 text-sm leading-snug truncate pr-2">
-                {prompt.title}
-              </h3>
-              <div className="flex items-center gap-1.5 mt-1">
-                <div className={`w-1 h-1 rounded-full ${accent.cls} opacity-70`} />
-                <span className="text-xs text-gray-400 dark:text-gray-500">{prompt.category}</span>
+            <div className="flex flex-1 min-w-0 items-start gap-2">
+              {selectable && (
+                <button
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); onToggleSelect && onToggleSelect() }}
+                  className={`mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-md border text-xs font-bold ${selected ? 'bg-orange-500 text-white border-orange-500' : 'bg-white/80 dark:bg-zinc-900/80 text-gray-400 border-gray-200 dark:border-zinc-700'}`}
+                  aria-label={`Select ${prompt.title}`}
+                  aria-pressed={selected ? 'true' : 'false'}
+                >
+                  {selected ? '✓' : ''}
+                </button>
+              )}
+              <div className="min-w-0">
+                <h3 className="font-semibold text-gray-900 dark:text-white/90 text-sm leading-snug truncate pr-2">
+                  {prompt.title}
+                </h3>
+                <div className="flex items-center gap-1.5 mt-1">
+                  <div className={`w-1 h-1 rounded-full ${accent.cls} opacity-70`} />
+                  <span className="text-xs text-gray-400 dark:text-gray-500">{prompt.category}</span>
+                </div>
               </div>
             </div>
             <div className="flex items-center gap-1 flex-shrink-0 mt-0.5">
@@ -257,11 +258,11 @@ export default function PromptCard({ prompt, onFavorite, onCopy, onDelete, onSha
           <div className="border-t border-gray-50 dark:border-white/5" />
 
           {/* Action buttons */}
-          <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
+          <div className="grid grid-cols-3 gap-1.5" onClick={(e) => e.stopPropagation()} onMouseEnter={() => { clearTimeout(hoverTimer.current); setShowPreview(false) }}>
             <button
               type="button"
               onClick={handleCopy}
-              className={`flex-1 rounded-lg border px-2 py-1.5 text-[11px] font-medium transition-all duration-150 active:scale-95 ${
+              className={`min-w-0 rounded-lg border px-2 py-1.5 text-[11px] font-medium transition-all duration-150 active:scale-95 ${
                 copied
                   ? 'border-green-500/20 bg-green-500/10 text-green-600 dark:text-green-400'
                   : 'border-gray-100 bg-gray-50 text-gray-600 hover:bg-gray-100 dark:border-white/6 dark:bg-white/5 dark:text-gray-300 dark:hover:bg-white/8'
@@ -276,7 +277,7 @@ export default function PromptCard({ prompt, onFavorite, onCopy, onDelete, onSha
             <button
               type="button"
               onClick={(e) => { e.stopPropagation(); setShowAIModal(true) }}
-              className="flex-1 rounded-lg px-2 py-1.5 text-[11px] font-medium text-white transition-all duration-150 active:scale-95"
+              className="min-w-0 rounded-lg px-2 py-1.5 text-[11px] font-medium text-white transition-all duration-150 active:scale-95"
               style={{ backgroundColor: 'var(--color-primary)' }}
               aria-label="Send prompt to AI"
             >
@@ -288,7 +289,7 @@ export default function PromptCard({ prompt, onFavorite, onCopy, onDelete, onSha
             <button
               type="button"
               onClick={(e) => { e.stopPropagation(); setShowRemixModal(true) }}
-              className="flex-1 rounded-lg bg-violet-500 px-2 py-1.5 text-[11px] font-medium text-white transition-all duration-150 hover:bg-violet-600 active:scale-95"
+              className="min-w-0 rounded-lg bg-violet-500 px-2 py-1.5 text-[11px] font-medium text-white transition-all duration-150 hover:bg-violet-600 active:scale-95"
               aria-label="Remix prompt"
             >
               <span className="flex items-center justify-center gap-1.5">
@@ -296,12 +297,13 @@ export default function PromptCard({ prompt, onFavorite, onCopy, onDelete, onSha
                 Remix
               </span>
             </button>
+          <div className="col-span-3 flex items-center justify-end gap-1.5">
               <button
                 type="button"
                 onClick={(e) => { e.stopPropagation(); onShare && onShare(prompt) }}
                 title="Share"
                 aria-label="Share prompt"
-                className="flex h-7 w-7 items-center justify-center rounded-lg bg-gray-50 text-gray-500 ring-1 ring-gray-100 transition-all duration-150 hover:text-orange-500 dark:bg-white/5 dark:text-gray-300 dark:ring-white/6"
+                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gray-50 text-gray-500 ring-1 ring-gray-100 transition-all duration-150 hover:text-orange-500 dark:bg-white/5 dark:text-gray-300 dark:ring-white/6"
               >
                 <svg viewBox="0 0 20 20" fill="none" className="h-3.5 w-3.5" aria-hidden="true"><path d="M14 7A2 2 0 1 1 14 3A2 2 0 0 1 14 7ZM6 12A2 2 0 1 1 6 8A2 2 0 0 1 6 12ZM14 17A2 2 0 1 1 14 13A2 2 0 0 1 14 17Z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/><path d="M8.2 11.3L12 8.8M8.2 8.7L12 11.4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg>
               </button>
@@ -309,7 +311,7 @@ export default function PromptCard({ prompt, onFavorite, onCopy, onDelete, onSha
               onClick={(e) => { e.stopPropagation(); onAddToCollection() }}
               title="Add to collection"
               aria-label="Add prompt to collection"
-              className="flex h-7 w-7 items-center justify-center rounded-lg bg-gray-50 text-gray-500 ring-1 ring-gray-100 transition-all duration-150 hover:text-orange-500 dark:bg-white/5 dark:text-gray-300 dark:ring-white/6"
+              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gray-50 text-gray-500 ring-1 ring-gray-100 transition-all duration-150 hover:text-orange-500 dark:bg-white/5 dark:text-gray-300 dark:ring-white/6"
             >
               <svg viewBox="0 0 20 20" fill="none" className="h-3.5 w-3.5" aria-hidden="true"><path d="M3.5 6.5C3.5 5.7 4.1 5 4.9 5H8L9.3 6.3H15.1C15.9 6.3 16.5 7 16.5 7.8V13.5C16.5 14.3 15.9 15 15.1 15H4.9C4.1 15 3.5 14.3 3.5 13.5V6.5Z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round"/></svg>
             </button>
@@ -317,11 +319,12 @@ export default function PromptCard({ prompt, onFavorite, onCopy, onDelete, onSha
               <button
                 onClick={(e) => { e.stopPropagation(); onDelete() }}
                 aria-label="Delete prompt"
-                className="flex h-7 w-7 items-center justify-center rounded-lg bg-red-50 text-red-500 ring-1 ring-red-100 transition-all duration-150 hover:bg-red-100 dark:bg-red-500/8 dark:text-red-300 dark:ring-red-500/10"
+                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-red-50 text-red-500 ring-1 ring-red-100 transition-all duration-150 hover:bg-red-100 dark:bg-red-500/8 dark:text-red-300 dark:ring-red-500/10"
               >
                 <svg viewBox="0 0 20 20" fill="none" className="h-3.5 w-3.5" aria-hidden="true"><path d="M6 5.5V4.7C6 3.8 6.8 3 7.7 3H12.3C13.2 3 14 3.8 14 4.7V5.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/><path d="M4 5.5H16" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/><path d="M6.5 8V14.2C6.5 15.1 7.2 15.8 8.1 15.8H11.9C12.8 15.8 13.5 15.1 13.5 14.2V8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg>
               </button>
             )}
+          </div>
           </div>
         </div>
       </div>

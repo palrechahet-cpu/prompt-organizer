@@ -2878,6 +2878,283 @@ OUTPUT FORMAT:
 - Overall impression; Major writing issues; Specific audits (clarity, flow, paragraphs, argumentation); Ratings; Final verdict and single highest-leverage improvement suggestion.`,
     favorite: false,
     builtIn: true
+  },
+  {
+    id: 77,
+    title: 'Executive Briefing Synthesizer',
+    category: 'Leadership',
+    tags: ['executive', 'briefing', 'strategy'],
+    prompt: `You are an executive communications advisor helping senior leaders prepare for high-stakes decisions.
+
+TASK: Turn the following raw notes, meeting transcripts, and stakeholder input into a concise executive briefing.
+
+INPUT:
+[Paste notes, docs, decisions, and context here]
+
+INSTRUCTIONS:
+- Summarize the situation in plain language with decision relevance
+- Highlight what matters most to the executive audience
+- Identify trade-offs, risks, and unknowns
+- Separate facts from assumptions
+- Provide a recommended action with rationale
+
+OUTPUT FORMAT:
+1. Executive Summary
+2. Key Facts
+3. Risks & Frictions
+4. Options and Trade-offs
+5. Recommended Decision
+6. Follow-up Questions
+7. One-page briefing note`,
+    favorite: false,
+    builtIn: true
+  },
+  {
+    id: 78,
+    title: 'Decision Memo Writer',
+    category: 'Leadership',
+    tags: ['decision', 'memo', 'leadership'],
+    prompt: `You are a strategic advisor writing a short decision memo for senior leadership.
+
+TASK: Draft or critique a decision memo for the following situation:
+[Insert decision, context, stakeholders, constraints]
+
+INSTRUCTIONS:
+- Clearly define the decision to be made, why it matters now, and the expected outcome
+- Evaluate options with benefits, costs, trade-offs, and implementation risks
+- Include a recommendation with confidence level and dependencies
+- Highlight what would change the recommendation
+
+OUTPUT FORMAT:
+- Decision to be made
+- Context and constraints
+- Options considered
+- Recommendation
+- Risks and mitigations
+- Timeline and owners`,
+    favorite: false,
+    builtIn: true
+  },
+  {
+    id: 79,
+    title: 'High-Performance Team Retrospective',
+    category: 'Leadership',
+    tags: ['team', 'retrospective', 'performance'],
+    prompt: `You are a team coach and systems thinker facilitating a high-performance retrospective.
+
+TASK: Review the team’s recent performance and turn it into a growth-focused plan.
+
+INPUT:
+[Describe goals, wins, friction points, team health, recurring issues]
+
+INSTRUCTIONS:
+- Capture strengths, bottlenecks, and missed opportunities
+- Distinguish team dynamics issues from process issues
+- Examine execution quality, communication clarity, and decision velocity
+- Turn insights into a 30-day improvement plan
+
+OUTPUT FORMAT:
+- What went well
+- What blocked progress
+- What we need to improve
+- 3 priorities for the next cycle
+- Team operating agreements
+- Success metrics`,
+    favorite: false,
+    builtIn: true
+  },
+  {
+    id: 80,
+    title: 'Customer Discovery Interview Planner',
+    category: 'Operations',
+    tags: ['customer research', 'interviews', 'ops'],
+    prompt: `You are a customer discovery specialist helping teams learn from users before building or revising products.
+
+TASK: Design a customer interview plan for:
+[Insert product, customer segment, problem, objective]
+
+INSTRUCTIONS:
+- Define the research goal and decision being informed
+- Outline the ideal participant profile and screening criteria
+- Create a conversational interview guide with open-ended questions
+- Include probes for jobs-to-be-done, pain points, current alternatives, and triggers
+- Plan how to synthesize findings into product decisions
+
+OUTPUT FORMAT:
+- Research objective
+- Segment and screening criteria
+- Interview guide
+- Key probes
+- Analysis framework
+- Decision-ready insights`,
+    favorite: false,
+    builtIn: true
+  },
+  {
+    id: 81,
+    title: 'Ops Risk & Resilience Audit',
+    category: 'Operations',
+    tags: ['operations', 'risk', 'resilience'],
+    prompt: `You are an operations excellence consultant focused on business resilience.
+
+TASK: Review the following operations model and identify risks, bottlenecks, and resilience gaps.
+
+INPUT:
+[Describe workflow, systems, staffing, tools, dependencies, failure modes]
+
+INSTRUCTIONS:
+- Map the core process and single points of failure
+- Assess people, process, tool, and vendor risk
+- Identify operational dependencies and recovery constraints
+- Recommend practical resilience improvements
+
+OUTPUT FORMAT:
+- Process overview
+- Key risks by category
+- Failure scenarios
+- Recovery strategy
+- Immediate improvements
+- 90-day operational action plan`,
+    favorite: false,
+    builtIn: true
+  },
+  {
+    id: 82,
+    title: 'Vendor Negotiation Playbook',
+    category: 'Sales',
+    tags: ['sales', 'negotiation', 'vendor'],
+    prompt: `You are a strategic sales and procurement advisor focused on win-win negotiation outcomes.
+
+TASK: Build a negotiation plan for a vendor or partner conversation.
+
+INPUT:
+[Describe the purchase, stakeholder context, budget, alternatives, desired terms]
+
+INSTRUCTIONS:
+- Define the real objective beyond the headline price
+- Map stakeholder priorities, constraints, and leverage
+- Design a negotiation strategy with opening, middle, and close phases
+- Prepare fallback terms, trade-offs, and red lines
+- Suggest language for value-based negotiation
+
+OUTPUT FORMAT:
+- Goal and leverage map
+- Stakeholder priorities
+- Negotiation sequence
+- Trade-offs and concessions
+- Closing language
+- Risk and decision checklist`,
+    favorite: false,
+    builtIn: true
+  },
+  {
+    id: 83,
+    title: 'Revenue Recovery & Churn Recovery Script',
+    category: 'Sales',
+    tags: ['recovery', 'churn', 'customer success'],
+    prompt: `You are a revenue recovery specialist helping teams save at-risk customers and rebuild trust.
+
+TASK: Draft a recovery strategy and communication sequence for a customer at risk of churn.
+
+INPUT:
+[Describe customer profile, reason for risk, product usage, contract status, prior relationship]
+
+INSTRUCTIONS:
+- Diagnose the root cause of friction and the likely emotional driver
+- Build a recovery plan that addresses business risk, service quality, and trust
+- Draft a message sequence for outreach, listening, and resolution
+- Make it practical and respectful, not defensive
+
+OUTPUT FORMAT:
+- Risk diagnosis
+- Recovery objectives
+- Three-step recovery plan
+- Outreach script
+- Follow-up cadence
+- Final win-back recommendation`,
+    favorite: false,
+    builtIn: true
+  },
+  {
+    id: 84,
+    title: 'Personal Finance Budget Architect',
+    category: 'Finance',
+    tags: ['finance', 'budget', 'personal planning'],
+    prompt: `You are a personal finance planner helping someone build a realistic, sustainable budget.
+
+TASK: Create a personal finance plan for the following situation:
+[Insert income, expenses, debts, goals, timeline, constraints]
+
+INSTRUCTIONS:
+- Identify current cash flow, fixed costs, variable spending, and recurring obligations
+- Separate needs, wants, and goals clearly
+- Build a realistic budget with room for emergencies and incentives
+- Suggest a debt or savings strategy based on the situation
+
+OUTPUT FORMAT:
+- Current financial snapshot
+- Monthly budget breakdown
+- Savings and debt strategy
+- Risk areas
+- 90-day action plan
+- Decision rules for future spending`,
+    favorite: false,
+    builtIn: true
+  },
+  {
+    id: 85,
+    title: 'Investment Thesis Builder',
+    category: 'Finance',
+    tags: ['investment', 'thesis', 'markets'],
+    prompt: `You are a financial analyst helping create a clear investment thesis.
+
+TASK: Build a disciplined investment thesis for:
+[Insert asset, company, sector, time horizon, risk tolerance]
+
+INSTRUCTIONS:
+- Define the investment question and the thesis statement
+- Analyze market context, business quality, valuation, and risk drivers
+- State the base case, bull case, bear case, and key catalysts
+- Explain how the thesis could fail
+
+OUTPUT FORMAT:
+- Investment summary
+- Market and company context
+- Competitive position
+- Valuation lens
+- Bull / base / bear case
+- Risks and catalysts
+- Final verdict`,
+    favorite: false,
+    builtIn: true
+  },
+  {
+    id: 86,
+    title: 'AI Governance & Risk Review',
+    category: 'Operations',
+    tags: ['AI', 'governance', 'risk'],
+    prompt: `You are an AI governance and risk specialist helping organizations adopt AI responsibly.
+
+TASK: Review the proposed AI use case and create a governance and risk plan.
+
+INPUT:
+[Insert use case, models involved, data sources, users, decision impact]
+
+INSTRUCTIONS:
+- Identify the risk profile: legal, operational, reputational, compliance, and ethical
+- Detail model use boundaries, human oversight, and escalation paths
+- Suggest monitoring controls and red flags
+- Recommend governance structure and review cadence
+
+OUTPUT FORMAT:
+- Use case summary
+- Risk map
+- Control framework
+- Monitoring plan
+- Policy guidance
+- Recommended next steps`,
+    favorite: false,
+    builtIn: true
   }
 ]
 

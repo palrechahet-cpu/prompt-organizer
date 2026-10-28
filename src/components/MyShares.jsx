@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { collection, doc, onSnapshot, setDoc, serverTimestamp } from 'firebase/firestore'
 import { db } from '../firebase'
 import useFocusTrap from '../hooks/useFocusTrap'
+import { buildShareUrl } from '../shareLinks'
 
 export default function MySharesModal({ user, onClose, showToast }) {
   const modalRef = useRef(null)
@@ -58,7 +59,7 @@ export default function MySharesModal({ user, onClose, showToast }) {
                     <p className="text-xs text-gray-400 mt-1">Visibility: {p.visibility || 'anyone'}</p>
                   </div>
                   <div className="flex flex-col gap-2">
-                    <a href={`/s/${p.id}`} target="_blank" rel="noreferrer" className="text-xs text-blue-600">Open</a>
+                    <a href={buildShareUrl('prompt', p.id)} target="_blank" rel="noreferrer" className="text-xs text-blue-600">Open</a>
                     {p.active === false ? <span className="text-xs text-red-400">Revoked</span> : <button onClick={() => revokeDoc('prompt', p.id)} className="text-xs bg-red-500 text-white px-2 py-1 rounded">Revoke</button>}
                   </div>
                 </div>
@@ -77,7 +78,7 @@ export default function MySharesModal({ user, onClose, showToast }) {
                     <p className="text-xs text-gray-400 mt-1">Visibility: {c.visibility || 'anyone'}</p>
                   </div>
                   <div className="flex flex-col gap-2">
-                    <a href={`/c/${c.id}`} target="_blank" rel="noreferrer" className="text-xs text-blue-600">Open</a>
+                    <a href={buildShareUrl('collection', c.id)} target="_blank" rel="noreferrer" className="text-xs text-blue-600">Open</a>
                     {c.active === false ? <span className="text-xs text-red-400">Revoked</span> : <button onClick={() => revokeDoc('collection', c.id)} className="text-xs bg-red-500 text-white px-2 py-1 rounded">Revoke</button>}
                   </div>
                 </div>

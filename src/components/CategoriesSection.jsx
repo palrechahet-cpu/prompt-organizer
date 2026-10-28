@@ -1,65 +1,77 @@
 export default function CategoriesSection({ categories, activeCategory, onCategoryChange, onAddCategory, onDeleteCategory, userCategories = [] }) {
   const categoryConfig = {
-    'All':                  { emoji: '✨' },
-    'Research':             { emoji: '📚' },
-    'Writing':              { emoji: '✍️' },
-    'Education':            { emoji: '🎓' },
-    'AI':                   { emoji: '🤖' },
-    'Productivity':         { emoji: '⚡' },
-    'Creative':             { emoji: '🎨' },
-    'Health & Fitness':     { emoji: '💪' },
-    'Tech & Coding':        { emoji: '💻' },
-    'Social Media':         { emoji: '📱' },
-    'Product & Strategy':   { emoji: '🚀' },
+    'All': { emoji: '✨' },
+    'Research': { emoji: '📚' },
+    'Writing': { emoji: '✍️' },
+    'Education': { emoji: '🎓' },
+    'AI': { emoji: '🤖' },
+    'Productivity': { emoji: '⚡' },
+    'Creative': { emoji: '🎨' },
+    'Health & Fitness': { emoji: '💪' },
+    'Tech & Coding': { emoji: '💻' },
+    'Social Media': { emoji: '📱' },
+    'Product & Strategy': { emoji: '🚀' },
     'Ideation & Brainstorm': { emoji: '💡' },
+    'Leadership': { emoji: '🧭' },
+    'Operations': { emoji: '🛠️' },
+    'Sales': { emoji: '📈' },
+    'Finance': { emoji: '💰' }
   }
+
   return (
     <section className="mb-8">
-      <h2 className="text-xs font-bold uppercase tracking-widest text-gray-400 dark:text-gray-600 mb-4">Browse Categories</h2>
-      <div className="flex gap-2 flex-wrap">
+      <div className="mb-4 flex items-center justify-between gap-3">
+        <div>
+          <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-gray-400 dark:text-gray-500">Browse</p>
+          <h2 className="text-lg font-bold text-gray-900 dark:text-white">Prompt categories</h2>
+        </div>
+        <button
+          onClick={onAddCategory}
+          className="inline-flex items-center gap-2 rounded-xl border border-dashed border-gray-200 bg-white px-3 py-2 text-xs font-semibold text-gray-600 transition hover:border-orange-300 hover:text-orange-500 dark:border-white/10 dark:bg-zinc-900 dark:text-gray-300"
+        >
+          <span>＋</span>
+          <span>New category</span>
+        </button>
+      </div>
+
+      <div className="flex flex-wrap gap-2">
         {categories.map(c => {
           const config = categoryConfig[c] || { emoji: '📁' }
           const isActive = activeCategory === c
           const isUserCategory = userCategories.includes(c)
+
           return (
             <div key={c} className="relative group/cat">
               <button
                 onClick={() => onCategoryChange(c)}
-                className="px-3 sm:px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold transition-all duration-200 flex items-center gap-2 whitespace-nowrap active:scale-95 hover:-translate-y-0.5 border"
+                className="flex items-center gap-2 whitespace-nowrap rounded-xl border px-3 py-2 text-xs font-semibold transition-all duration-200 sm:text-sm active:scale-95"
                 style={isActive ? {
                   background: `linear-gradient(to right, var(--color-primary), var(--color-secondary))`,
-                  color: 'white',
                   borderColor: 'var(--color-primary)',
-                  boxShadow: `0 4px 12px color-mix(in srgb, var(--color-primary) 30%, transparent)`
+                  color: '#fff',
+                  boxShadow: `0 8px 18px color-mix(in srgb, var(--color-primary) 22%, transparent)`
                 } : {
-                  backgroundColor: 'white',
-                  borderColor: '#f3f4f6',
-                  color: '#6b7280'
+                  backgroundColor: 'rgba(255,255,255,0.75)',
+                  borderColor: '#e5e7eb',
+                  color: '#4b5563'
                 }}
-                onMouseEnter={e => { if (!isActive) e.currentTarget.style.color = 'var(--color-primary)' }}
-                onMouseLeave={e => { if (!isActive) e.currentTarget.style.color = '#6b7280' }}
               >
                 <span className="text-base">{config.emoji}</span>
                 <span>{c}</span>
               </button>
+
               {isUserCategory && onDeleteCategory && (
                 <button
                   onClick={() => onDeleteCategory(c)}
-                  className="absolute -top-1.5 -right-1.5 w-4 h-4 bg-red-500 text-white rounded-full text-xs hidden group-hover/cat:flex items-center justify-center leading-none"
-                >×</button>
+                  className="absolute -right-1 -top-1 hidden h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white shadow-sm group-hover/cat:flex"
+                  aria-label={`Delete ${c}`}
+                >
+                  ×
+                </button>
               )}
             </div>
           )
         })}
-        <button
-          onClick={onAddCategory}
-          className="px-3 sm:px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold transition-all duration-200 flex items-center gap-2 whitespace-nowrap bg-white dark:bg-zinc-900 border border-dashed border-gray-200 dark:border-zinc-700 text-gray-400 active:scale-95"
-          onMouseEnter={e => { e.currentTarget.style.color = 'var(--color-primary)'; e.currentTarget.style.borderColor = 'var(--color-primary)' }}
-          onMouseLeave={e => { e.currentTarget.style.color = ''; e.currentTarget.style.borderColor = '' }}
-        >
-          <span>+</span>
-          <span>New Category</span>
-        </button>
       </div>
     </section>
   )
