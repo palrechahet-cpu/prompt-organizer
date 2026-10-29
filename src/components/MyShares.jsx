@@ -4,6 +4,29 @@ import { db } from '../firebase'
 import useFocusTrap from '../hooks/useFocusTrap'
 import { buildShareUrl } from '../shareLinks'
 
+const SHARE_STORAGE_KEY = 'prompt-organizer-local-shares-v1'
+
+function readLocalShareStore() {
+  try {
+    return JSON.parse(localStorage.getItem(SHARE_STORAGE_KEY) || '{}')
+  } catch {
+    return {}
+  }
+}
+
+function listLocalShareRecords(type, ownerId = null) {
+  const items = readLocalShareStore()[type] || []
+  return ownerId ? items.filter(item => item.ownerId === ownerId) : items
+}
+
+function revokeLocalShareRecord(type, id) {
+  const store = readLocalShareStore()
+  const bucket = (store[type] || []).map(item => item.id === id ? { ...item, active: false, revokedAt: Date.now() } : item)
+  store[type] = bucket
+  localStorage.setItem(SHARE_STORAGE_KEY, JSON.stringify(store))
+  return true
+}
+
 export default function MySharesModal({ user, onClose, showToast }) {
   const modalRef = useRef(null)
   useFocusTrap(modalRef, onClose)
@@ -13,16 +36,33 @@ export default function MySharesModal({ user, onClose, showToast }) {
 
   useEffect(() => {
     if (!user) return
-    const pRef = collection(db, 'sharedPrompts')
-    const cRef = collection(db, 'sharedCollections')
-    const unsubP = onSnapshot(pRef, (snap) => {
-      const items = snap.docs.map(d => ({ id: d.id, ...d.data() })).filter(d => d.ownerId === user.uid)
-      setSharedPrompts(items)
-    })
-    const unsubC = onSnapshot(cRef, (snap) => {
-      const items = snap.docs.map(d => ({ id: d.id, ...d.data() })).filter(d => d.ownerId === user.uid)
-      setSharedCollections(items)
-    })
+
+    let unsubP = () => {}
+    let unsubC = () => {}
+
+    try {
+      const pRef = collection(db, 'sharedPrompts')
+      const cRef = collection(db, 'sharedCollections')
+      unsubP = onSnapshot(pRef, (snap) => {
+        const items = snap.docs.map(d => ({ id: d.id, ...d.data() })).filter(d => d.ownerId === user.uid)
+        setSharedPrompts(items)
+      }, () => {
+        setSharedPrompts(listLocalShareRecords('sharedPrompts', user.uid))
+      })
+      unsubC = onSnapshot(cRef, (snap) => {
+        const items = snap.docs.map(d => ({ id: d.id, ...d.data() })).filter(d => d.ownerId === user.uid)
+        setSharedCollections(items)
+      }, () => {
+        setSharedCollections(listLocalShareRecords('sharedCollections', user.uid))
+      })
+    } catch (err) {
+      console.warn('Firestore share listing not available, using local cache', err)
+      queueMicrotask(() => {
+        setSharedPrompts(listLocalShareRecords('sharedPrompts', user.uid))
+        setSharedCollections(listLocalShareRecords('sharedCollections', user.uid))
+      })
+    }
+
     return () => { unsubP(); unsubC() }
   }, [user])
 
@@ -33,8 +73,9 @@ export default function MySharesModal({ user, onClose, showToast }) {
       await setDoc(doc(db, col, id), { active: false, revokedAt: serverTimestamp() }, { merge: true })
       showToast && showToast({ message: 'Share revoked', actionLabel: 'Undo', onAction: async () => { await setDoc(doc(db, col, id), { active: true, revokedAt: null }, { merge: true }); showToast && showToast('Share restored') } })
     } catch (err) {
-      console.error('revoke error', err)
-      showToast && showToast({ message: 'Failed to revoke', type: 'error' })
+      console.warn('revoke error, falling back to local storage', err)
+      revokeLocalShareRecord(type === 'prompt' ? 'sharedPrompts' : 'sharedCollections', id)
+      showToast && showToast({ message: 'Share revoked locally', actionLabel: 'Undo', onAction: async () => { revokeLocalShareRecord(type === 'prompt' ? 'sharedPrompts' : 'sharedCollections', id); showToast && showToast('Share restored') } })
     }
   }
 

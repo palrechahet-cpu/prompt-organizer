@@ -27,6 +27,46 @@ const THEME_COLORS = {
   rose:   { primary: '#f43f5e', secondary: '#ec4899' },
 }
 
+const SHARE_STORAGE_KEY = 'prompt-organizer-local-shares-v1'
+
+function readLocalShareStore() {
+  if (typeof window === 'undefined') return {}
+  try {
+    return JSON.parse(localStorage.getItem(SHARE_STORAGE_KEY) || '{}')
+  } catch {
+    return {}
+  }
+}
+
+function writeLocalShareStore(store) {
+  if (typeof window === 'undefined') return
+  localStorage.setItem(SHARE_STORAGE_KEY, JSON.stringify(store))
+}
+
+function createLocalShareRecord(type, payload) {
+  const store = readLocalShareStore()
+  const bucket = Array.isArray(store[type]) ? store[type] : []
+  const id = `local-${Date.now()}-${Math.random().toString(16).slice(2, 10)}`
+  const record = { id, ...payload, active: true, source: 'local', createdAt: Date.now() }
+  bucket.push(record)
+  store[type] = bucket
+  writeLocalShareStore(store)
+  return record
+}
+
+function getLocalShareRecord(type, id) {
+  const items = readLocalShareStore()[type] || []
+  return items.find(item => item.id === id) || null
+}
+
+function revokeLocalShareRecord(type, id) {
+  const store = readLocalShareStore()
+  const bucket = (store[type] || []).map(item => item.id === id ? { ...item, active: false, revokedAt: Date.now() } : item)
+  store[type] = bucket
+  writeLocalShareStore(store)
+  return true
+}
+
 function applyTheme(theme) {
   const c = THEME_COLORS[theme] || THEME_COLORS.orange
   document.documentElement.style.setProperty('--color-primary', c.primary)
@@ -70,8 +110,18 @@ function ShareModal({ prompt, onClose, user, onRevoke, showToast }) {
       setShareUrl(link)
       await copyLink(link)
     } catch (err) {
-      console.error('createSharedLink error', err)
-      showToast?.({ message: 'Could not create a share link right now.', type: 'error' })
+      console.warn('createSharedLink error, using local fallback', err)
+      try {
+        const fallback = createLocalShareRecord('sharedPrompts', { ...{ title: prompt.title, category: prompt.category, prompt: prompt.prompt, tags: prompt.tags || [], visibility, active: true, createdAt: Date.now() }, ...(user ? { ownerId: user.uid, ownerName: user.displayName || null, ownerPhoto: user.photoURL || null } : {}) })
+        setShareDocId(fallback.id)
+        setShareOwnerId(fallback.ownerId || null)
+        const link = buildShareUrl('prompt', fallback.id)
+        setShareUrl(link)
+        await copyLink(link)
+      } catch (fallbackErr) {
+        console.error('createSharedLink fallback error', fallbackErr)
+        showToast?.({ message: 'Could not create a share link right now.', type: 'error' })
+      }
     } finally {
       setCreating(false)
     }
@@ -162,8 +212,28 @@ function ShareCollectionModal({ sharedCollection, prompts, user, onClose, onRevo
       setShareUrl(link)
       await copyLink(link)
     } catch (err) {
-      console.error('createSharedCollection error', err)
-      showToast?.({ message: 'Could not create a collection share link.', type: 'error' })
+      console.warn('createSharedCollection error, using local fallback', err)
+      try {
+        const fallback = createLocalShareRecord('sharedCollections', {
+          name: sharedCollection.name,
+          emoji: sharedCollection.emoji,
+          ownerId: user ? user.uid : null,
+          ownerName: user ? user.displayName : null,
+          ownerPhoto: user ? user.photoURL : null,
+          visibility,
+          active: true,
+          prompts: prompts.filter(p => p.collections?.includes(sharedCollection.id)).map(p => ({ title: p.title, prompt: p.prompt, category: p.category, tags: p.tags || [] })),
+          createdAt: Date.now()
+        })
+        setShareDocId(fallback.id)
+        setShareOwnerId(fallback.ownerId || null)
+        const link = buildShareUrl('collection', fallback.id)
+        setShareUrl(link)
+        await copyLink(link)
+      } catch (fallbackErr) {
+        console.error('createSharedCollection fallback error', fallbackErr)
+        showToast?.({ message: 'Could not create a collection share link.', type: 'error' })
+      }
     } finally {
       setCreating(false)
     }
@@ -381,8 +451,13 @@ function App() {
       await setDoc(doc(db, col, id), { active: false, revokedAt: serverTimestamp() }, { merge: true })
       showToast({ message: 'Share revoked', actionLabel: 'Undo', onAction: async () => { await setDoc(doc(db, col, id), { active: true, revokedAt: null }, { merge: true }); showToast('Share restored') } })
     } catch (err) {
-      console.error('revokeSharedDoc error', err)
-      showToast({ message: 'Failed to revoke', type: 'error' })
+      console.warn('revokeSharedDoc error, falling back to local storage', err)
+      const success = revokeLocalShareRecord(type === 'prompt' ? 'sharedPrompts' : 'sharedCollections', id)
+      if (success) {
+        showToast({ message: 'Share revoked locally', actionLabel: 'Undo', onAction: async () => { revokeLocalShareRecord(type === 'prompt' ? 'sharedPrompts' : 'sharedCollections', id); showToast('Share restored') } })
+      } else {
+        showToast({ message: 'Failed to revoke', type: 'error' })
+      }
     }
   }
   const [sharePrompt, setSharePrompt] = useState(null)
@@ -500,20 +575,33 @@ function App() {
   // Check for persistent shared prompt via path /s/:id
   useEffect(() => {
     const tryLoadShared = async () => {
+      const route = getRouteShareMeta()
+      if (!route || route.type !== 'prompt') return
+
       try {
-        const route = getRouteShareMeta()
-        if (!route || route.type !== 'prompt') return
         const snap = await getDoc(doc(db, 'sharedPrompts', route.id))
         if (snap.exists()) {
           const data = snap.data()
           if (data.active === false) { showToast('This shared prompt has been revoked'); return }
           setIncomingSharedPrompt({ id: snap.id, ...data })
-        } else {
-          showToast('Shared prompt not found')
+          return
         }
       } catch (err) {
-        console.error('Error loading shared prompt', err)
+        console.warn('Firestore share lookup failed; checking local backup', err)
       }
+
+      const local = getLocalShareRecord('sharedPrompts', route.id)
+      if (local && local.active !== false) {
+        setIncomingSharedPrompt({ id: local.id, ...local })
+        return
+      }
+
+      if (local && local.active === false) {
+        showToast('This shared prompt has been revoked')
+        return
+      }
+
+      showToast('Shared prompt not found')
     }
     tryLoadShared()
   }, [user])
@@ -521,20 +609,33 @@ function App() {
   // Check for persistent shared collection via path /c/:id
   useEffect(() => {
     const tryLoadSharedCollection = async () => {
+      const route = getRouteShareMeta()
+      if (!route || route.type !== 'collection') return
+
       try {
-        const route = getRouteShareMeta()
-        if (!route || route.type !== 'collection') return
         const snap = await getDoc(doc(db, 'sharedCollections', route.id))
         if (snap.exists()) {
           const data = snap.data()
           if (data.active === false) { showToast('This shared collection has been revoked'); return }
           setIncomingSharedCollection({ id: snap.id, ...data })
-        } else {
-          showToast('Shared collection not found')
+          return
         }
       } catch (err) {
-        console.error('Error loading shared collection', err)
+        console.warn('Firestore collection share lookup failed; checking local backup', err)
       }
+
+      const local = getLocalShareRecord('sharedCollections', route.id)
+      if (local && local.active !== false) {
+        setIncomingSharedCollection({ id: local.id, ...local })
+        return
+      }
+
+      if (local && local.active === false) {
+        showToast('This shared collection has been revoked')
+        return
+      }
+
+      showToast('Shared collection not found')
     }
     tryLoadSharedCollection()
   }, [user])
